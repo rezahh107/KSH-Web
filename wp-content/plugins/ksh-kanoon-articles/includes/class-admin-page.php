@@ -17,16 +17,32 @@ final class Admin_Page {
 	const NONCE         = 'ksh_kanoon_articles_preview';
 	const REFRESH_NONCE = 'ksh_kanoon_articles_refresh';
 
-	/** @var Preview_Service */
+	/**
+	 * Read-only Preview service.
+	 *
+	 * @var Preview_Service
+	 */
 	private $preview;
 
-	/** @var Refresh_Service */
+	/**
+	 * Canonical local refresh service.
+	 *
+	 * @var Refresh_Service
+	 */
 	private $refresh;
 
-	/** @var Snapshot_Store */
+	/**
+	 * Local snapshot/status store.
+	 *
+	 * @var Snapshot_Store
+	 */
 	private $store;
 
-	/** @var Scheduler */
+	/**
+	 * Native schedule owner.
+	 *
+	 * @var Scheduler
+	 */
 	private $scheduler;
 
 	/**
@@ -321,7 +337,10 @@ final class Admin_Page {
 			<td><?php echo esc_html( $label ); ?></td>
 			<td>
 				<?php if ( is_array( $snapshot ) ) : ?>
-					<?php echo esc_html( sprintf( __( 'موجود — %d رکورد', 'ksh-kanoon-articles' ), (int) $snapshot['count'] ) ); ?>
+					<?php
+					/* translators: %d: number of stored article records. */
+					echo esc_html( sprintf( __( 'موجود — %d رکورد', 'ksh-kanoon-articles' ), (int) $snapshot['count'] ) );
+					?>
 				<?php else : ?>
 					<?php echo esc_html__( 'هنوز Snapshot معتبر نداریم', 'ksh-kanoon-articles' ); ?>
 				<?php endif; ?>
