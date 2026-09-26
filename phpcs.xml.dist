@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="KSH-Web WordPress">
+	<description>WordPress coding standards for owned PHP source.</description>
+	<file>wp-content/plugins/ksh-kanoon-articles</file>
+	<exclude-pattern>*/vendor/*</exclude-pattern>
+	<arg name="extensions" value="php"/>
+	<arg value="sp"/>
+	<rule ref="WordPress"/>
+	<rule ref="WordPress.WP.I18n">
+		<properties>
+			<property name="text_domain" type="array">
+				<element value="ksh-kanoon-articles"/>
+			</property>
+		</properties>
+	</rule>
+</ruleset>

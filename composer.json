@@ -1,0 +1,20 @@
+{
+  "name": "rezahh107/ksh-web-dev",
+  "description": "Development-only verification tooling for KSH-Web.",
+  "type": "project",
+  "require-dev": {
+    "ext-dom": "*",
+    "dealerdirect/phpcodesniffer-composer-installer": "1.2.1",
+    "wp-coding-standards/wpcs": "3.4.1"
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    },
+    "sort-packages": true
+  },
+  "scripts": {
+    "cs": "phpcs --standard=phpcs.xml.dist",
+    "test": "php tests/run.php"
+  }
+}
