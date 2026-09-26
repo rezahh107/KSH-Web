@@ -51,6 +51,7 @@ assert_same( 'شنبه 4 مهر 1405', $latest['items'][0]['date_context'], 'Lat
 
 $multi_day = $parser->parse_latest( fixture( 'latest-multi-day.html' ) );
 assert_same( 'success', $multi_day['status'], 'multi-day Latest succeeds' );
+assert_same( 'شنبه 4 مهر 1405', $multi_day['date_context'], 'Latest summary date context remains the initial boundary' );
 assert_same( 5, $multi_day['count'], 'later date headings do not terminate Latest traversal' );
 assert_same(
 	array(
