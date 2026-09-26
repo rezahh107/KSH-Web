@@ -14,16 +14,32 @@ final class Scheduler {
 
 	const HOOK = 'ksh_kanoon_articles_daily_refresh';
 
-	/** @var callable */
+	/**
+	 * Next-event lookup.
+	 *
+	 * @var callable
+	 */
 	private $next_scheduled;
 
-	/** @var callable */
+	/**
+	 * Recurring-event scheduler.
+	 *
+	 * @var callable
+	 */
 	private $schedule_event;
 
-	/** @var callable */
+	/**
+	 * Event remover.
+	 *
+	 * @var callable
+	 */
 	private $clear_scheduled_hook;
 
-	/** @var callable */
+	/**
+	 * Current Unix timestamp producer.
+	 *
+	 * @var callable
+	 */
 	private $now;
 
 	/**
