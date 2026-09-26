@@ -12,13 +12,25 @@ namespace KSH\KanoonArticles;
  */
 final class Refresh_Service {
 
-	/** @var Preview_Service */
+	/**
+	 * Qualified candidate producer.
+	 *
+	 * @var Preview_Service
+	 */
 	private $preview;
 
-	/** @var Snapshot_Store */
+	/**
+	 * Local snapshot store.
+	 *
+	 * @var Snapshot_Store
+	 */
 	private $store;
 
-	/** @var callable */
+	/**
+	 * UTC timestamp producer.
+	 *
+	 * @var callable
+	 */
 	private $clock;
 
 	/**
