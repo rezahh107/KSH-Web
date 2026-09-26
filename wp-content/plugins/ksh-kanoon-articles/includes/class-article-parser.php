@@ -396,14 +396,14 @@ final class Article_Parser {
 	}
 
 	/**
-	 * Collapse whitespace and invisible separators without changing meaningful content.
+	 * Collapse whitespace while preserving meaningful Persian joining characters.
 	 *
 	 * @param string $text Raw text.
 	 * @return string
 	 */
 	private function normalize_text( $text ) {
 		$text = html_entity_decode( (string) $text, ENT_QUOTES | ENT_HTML5, 'UTF-8' );
-		$text = str_replace( array( "\xC2\xA0", "\xE2\x80\x8C" ), ' ', $text );
+		$text = str_replace( "\xC2\xA0", ' ', $text );
 		$text = preg_replace( '/\s+/u', ' ', $text );
 
 		return trim( is_string( $text ) ? $text : '' );

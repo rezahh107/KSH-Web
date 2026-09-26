@@ -49,6 +49,12 @@ assert_same( 'https://www.kanoon.ir/Article/474577', $latest['items'][0]['url'],
 assert_same( 'https://www.kanoon.ir/Article/474578', $latest['items'][1]['url'], 'Latest preserves source ordering' );
 assert_same( 'شنبه 4 مهر 1405', $latest['items'][0]['date_context'], 'Latest propagates reliable day context' );
 
+$joining = $parser->parse_latest(
+	'<html><body><h3>شنبه 4 مهر 1405</h3>' .
+	'<a href="/Article/474579">گفت‌وگوی قلم‌چی دقایقی قبل 1 بازدید</a></body></html>'
+);
+assert_same( 'گفت‌وگوی قلم‌چی', $joining['items'][0]['title'], 'Latest preserves Persian ZWNJ in normalized titles' );
+
 $weekly = $parser->parse_weekly_popular( fixture( 'home-valid.html' ) );
 assert_same( 'success', $weekly['status'], 'valid Weekly Popular succeeds' );
 assert_same( 2, $weekly['count'], 'Weekly rejects foreign candidate and keeps valid items' );
