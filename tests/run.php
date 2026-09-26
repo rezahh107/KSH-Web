@@ -283,6 +283,9 @@ $refresh         = new Refresh_Service( $refresh_preview, $store, $clock );
 
 $first_refresh = $refresh->run();
 assert_same( 'success', $first_refresh['overall_status'], 'first valid refresh updates both lists' );
+assert_true( $first_refresh['latest']['attempt_recorded'], 'normal Latest attempt metadata is recorded' );
+assert_true( $first_refresh['weekly_popular']['attempt_recorded'], 'normal Weekly attempt metadata is recorded' );
+assert_same( '', $first_refresh['latest']['attempt_reason'], 'normal attempt persistence has no diagnostic failure reason' );
 assert_true( null !== $store->get_snapshot( 'latest' ), 'first successful Latest creates a snapshot' );
 assert_true( null !== $store->get_snapshot( 'weekly_popular' ), 'first successful Weekly creates a snapshot' );
 assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LATEST_SNAPSHOT ], 'Latest snapshot is non-autoloaded' );
@@ -309,6 +312,107 @@ $replaced   = $refresh->run();
 assert_same( 'success', $replaced['overall_status'], 'valid refresh replaces both prior snapshots' );
 assert_same( 'https://www.kanoon.ir/Article/950001', $store->get_snapshot( 'latest' )['items'][0]['url'], 'valid Latest refresh replaces prior Latest snapshot' );
 assert_same( 'https://www.kanoon.ir/Article/960001', $store->get_snapshot( 'weekly_popular' )['items'][0]['url'], 'valid Weekly refresh replaces prior Weekly snapshot' );
+
+/* Attempt metadata failure is operationally degraded without rolling back valid snapshots. */
+$attempt_fail_values = array(
+	Snapshot_Store::OPTION_LATEST_ATTEMPT => array(
+		'schema_version'   => 1,
+		'source'           => 'latest',
+		'attempted_at'     => '2026-09-26T23:00:00+00:00',
+		'candidate_status' => 'success',
+		'http_code'        => 200,
+		'reason'           => '',
+		'action'           => 'updated',
+	),
+);
+$attempt_fail_get = static function ( $name, $default = false ) use ( &$attempt_fail_values ) {
+	return array_key_exists( $name, $attempt_fail_values ) ? $attempt_fail_values[ $name ] : $default;
+};
+$attempt_fail_add = static function ( $name, $value ) use ( &$attempt_fail_values ) {
+	if ( Snapshot_Store::OPTION_LATEST_ATTEMPT === $name ) {
+		return false;
+	}
+	$attempt_fail_values[ $name ] = $value;
+	return true;
+};
+$attempt_fail_update = static function ( $name, $value ) use ( &$attempt_fail_values ) {
+	if ( Snapshot_Store::OPTION_LATEST_ATTEMPT === $name ) {
+		return false;
+	}
+	$attempt_fail_values[ $name ] = $value;
+	return true;
+};
+$attempt_fail_store = new Snapshot_Store( $attempt_fail_get, $attempt_fail_add, $attempt_fail_update );
+$fetch_mode         = 'replace';
+$attempt_fail_run   = new Refresh_Service(
+	$refresh_preview,
+	$attempt_fail_store,
+	static function (): string { return '2026-09-27T02:00:00+00:00'; }
+);
+$attempt_fail_result = $attempt_fail_run->run();
+assert_same( 'degraded', $attempt_fail_result['overall_status'], 'one failed attempt-status write prevents full refresh success' );
+assert_same( 'updated', $attempt_fail_result['latest']['action'], 'Latest snapshot action remains updated when only attempt metadata fails' );
+assert_same( 'updated', $attempt_fail_result['weekly_popular']['action'], 'Weekly snapshot still updates independently' );
+assert_same( false, $attempt_fail_result['latest']['attempt_recorded'], 'Latest exposes failed attempt persistence' );
+assert_same( 'attempt_write_failed', $attempt_fail_result['latest']['attempt_reason'], 'Latest exposes bounded attempt-write failure reason' );
+assert_same( true, $attempt_fail_result['weekly_popular']['attempt_recorded'], 'Weekly attempt persistence remains independently successful' );
+assert_same( 'https://www.kanoon.ir/Article/950001', $attempt_fail_store->get_snapshot( 'latest' )['items'][0]['url'], 'valid Latest snapshot is not rolled back after attempt write failure' );
+assert_same( 'https://www.kanoon.ir/Article/960001', $attempt_fail_store->get_snapshot( 'weekly_popular' )['items'][0]['url'], 'both valid snapshots remain updated in degraded operation' );
+assert_same( '2026-09-26T23:00:00+00:00', $attempt_fail_store->get_attempt( 'latest' )['attempted_at'], 'failed attempt write preserves the previous latest recorded attempt' );
+
+$attempt_fail_scheduler = new Scheduler(
+	static function () { return false; },
+	static function () { return true; },
+	static function () { return 1; },
+	static function () { return 1000; }
+);
+$attempt_fail_admin = new Admin_Page( $refresh_preview, $attempt_fail_run, $attempt_fail_store, $attempt_fail_scheduler );
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST['ksh_action']       = 'refresh';
+ob_start();
+$attempt_fail_admin->render();
+$degraded_html = ob_get_clean();
+assert_true( false !== strpos( $degraded_html, 'Refresh ناقص عملیاتی' ), 'manual refresh renders degraded operational warning' );
+assert_true( false !== strpos( $degraded_html, 'تازه‌ها — ثبت وضعیت تلاش:' ), 'manual refresh identifies the list whose attempt record failed' );
+assert_true( false !== strpos( $degraded_html, 'attempt_write_failed' ), 'manual refresh exposes bounded attempt-write failure reason' );
+assert_same( false, false !== strpos( $degraded_html, 'Refresh کامل:' ), 'degraded manual refresh cannot render full-success wording' );
+assert_true( false !== strpos( $degraded_html, 'آخرین تلاش ثبت‌شده' ), 'persistent status truthfully labels latest recorded attempt semantics' );
+unset( $_POST['ksh_action'] );
+$_SERVER['REQUEST_METHOD'] = 'GET';
+
+/* Snapshot-write failure remains distinct from attempt-write failure. */
+$snapshot_fail_values = array();
+$snapshot_fail_get    = static function ( $name, $default = false ) use ( &$snapshot_fail_values ) {
+	return array_key_exists( $name, $snapshot_fail_values ) ? $snapshot_fail_values[ $name ] : $default;
+};
+$snapshot_fail_add    = static function ( $name, $value ) use ( &$snapshot_fail_values ) {
+	if ( Snapshot_Store::OPTION_LATEST_SNAPSHOT === $name ) {
+		return false;
+	}
+	$snapshot_fail_values[ $name ] = $value;
+	return true;
+};
+$snapshot_fail_update = static function ( $name, $value ) use ( &$snapshot_fail_values ) {
+	if ( Snapshot_Store::OPTION_LATEST_SNAPSHOT === $name ) {
+		return false;
+	}
+	$snapshot_fail_values[ $name ] = $value;
+	return true;
+};
+$snapshot_fail_store  = new Snapshot_Store( $snapshot_fail_get, $snapshot_fail_add, $snapshot_fail_update );
+$fetch_mode           = 'replace';
+$snapshot_fail_run    = new Refresh_Service(
+	$refresh_preview,
+	$snapshot_fail_store,
+	static function (): string { return '2026-09-27T03:00:00+00:00'; }
+);
+$snapshot_fail_result = $snapshot_fail_run->run();
+assert_same( 'partial', $snapshot_fail_result['overall_status'], 'snapshot write failure keeps existing partial semantics when attempts record successfully' );
+assert_same( 'no_valid_snapshot_available', $snapshot_fail_result['latest']['action'], 'failed Latest snapshot write does not redefine action as updated' );
+assert_same( 'snapshot_write_failed', $snapshot_fail_result['latest']['reason'], 'snapshot write failure retains its distinct reason' );
+assert_same( true, $snapshot_fail_result['latest']['attempt_recorded'], 'snapshot write failure can still record attempt metadata successfully' );
+assert_same( '', $snapshot_fail_result['latest']['attempt_reason'], 'snapshot write failure is distinct from attempt write failure' );
+assert_same( 'updated', $snapshot_fail_result['weekly_popular']['action'], 'Weekly snapshot remains independently updatable during Latest snapshot write failure' );
 
 $latest_before_failure = $store->get_snapshot( 'latest' );
 $fetch_mode            = 'latest_fail';
