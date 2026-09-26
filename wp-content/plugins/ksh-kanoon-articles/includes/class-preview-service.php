@@ -12,10 +12,18 @@ namespace KSH\KanoonArticles;
  */
 final class Preview_Service {
 
-	/** @var callable */
+	/**
+	 * Remote acquisition callable.
+	 *
+	 * @var callable
+	 */
 	private $fetch;
 
-	/** @var Article_Parser */
+	/**
+	 * Parser boundary.
+	 *
+	 * @var Article_Parser
+	 */
 	private $parser;
 
 	/**

@@ -16,7 +16,11 @@ final class Admin_Page {
 	const MENU_SLUG  = 'ksh-kanoon-articles-preview';
 	const NONCE      = 'ksh_kanoon_articles_preview';
 
-	/** @var Preview_Service */
+	/**
+	 * Read-only Preview service.
+	 *
+	 * @var Preview_Service
+	 */
 	private $preview;
 
 	/**
@@ -51,7 +55,7 @@ final class Admin_Page {
 			wp_die( esc_html__( 'شما اجازه دسترسی به این ابزار را ندارید.', 'ksh-kanoon-articles' ) );
 		}
 
-		$result         = null;
+		$result = null;
 		$request_method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '';
 		if ( 'POST' === $request_method ) {
 			check_admin_referer( self::NONCE );

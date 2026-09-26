@@ -59,6 +59,10 @@ $ambiguous = $parser->parse_weekly_popular( fixture( 'home-ambiguous.html' ) );
 assert_same( 'ambiguous', $ambiguous['status'], 'Weekly/Monthly target collision is ambiguous' );
 assert_same( 'weekly_monthly_target_collision', $ambiguous['reason'], 'ambiguity reason is bounded' );
 
+$empty_source = $parser->parse_latest( '' );
+assert_same( 'failure', $empty_source['status'], 'empty Latest source fails' );
+assert_same( 'empty_html', $empty_source['reason'], 'empty Latest source reports reason' );
+
 $latest_empty = $parser->parse_latest( fixture( 'latest-empty.html' ) );
 assert_same( 'failure', $latest_empty['status'], 'zero-item Latest is not valid empty success' );
 assert_same( 'latest_zero_valid_items', $latest_empty['reason'], 'zero-item Latest reports reason' );

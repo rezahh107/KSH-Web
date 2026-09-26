@@ -37,21 +37,27 @@ final class Article_Parser {
 			return $this->result( 'latest', 'failure', array(), '', 'latest_date_boundary_missing' );
 		}
 
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 		$date_context = $this->normalize_text( $date_heading->textContent );
 		$items        = array();
 		$seen         = array();
-		$node          = $date_heading;
+		$node         = $date_heading;
 
-		while ( $node = $this->next_node( $node ) ) {
-			if ( $this->is_sidebar_boundary( $node ) ) {
+		$node = $this->next_node( $node );
+		while ( $node ) {
+			$current = $node;
+			$node    = $this->next_node( $node );
+
+			if ( $this->is_sidebar_boundary( $current ) ) {
 				break;
 			}
 
-			if ( ! $node instanceof DOMElement || 'a' !== strtolower( $node->tagName ) ) {
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
+			if ( ! $current instanceof DOMElement || 'a' !== strtolower( $current->tagName ) ) {
 				continue;
 			}
 
-			$item = $this->normalize_article_anchor( $node, 'latest', $date_context );
+			$item = $this->normalize_article_anchor( $current, 'latest', $date_context );
 			if ( ! $item || isset( $seen[ $item['url'] ] ) ) {
 				continue;
 			}
@@ -155,6 +161,7 @@ final class Article_Parser {
 			return null;
 		}
 
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 		$title = $this->clean_article_title( $anchor->textContent );
 		if ( '' === $title ) {
 			return null;
@@ -184,6 +191,7 @@ final class Article_Parser {
 			$href = 'https://www.kanoon.ir' . $href;
 		}
 
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Parser stays WordPress-independent for deterministic fixture tests.
 		$parts = parse_url( $href );
 		if ( ! is_array( $parts ) || empty( $parts['host'] ) || empty( $parts['path'] ) ) {
 			return '';
@@ -243,6 +251,7 @@ final class Article_Parser {
 		$pattern         = '/^' . $weekday_pattern . '\s+[' . $digit . ']{1,2}\s+' . $month_pattern . '\s+[' . $digit . ']{4}$/u';
 
 		foreach ( $headings as $heading ) {
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 			if ( $heading instanceof DOMElement && 1 === preg_match( $pattern, $this->normalize_text( $heading->textContent ) ) ) {
 				return $heading;
 			}
@@ -262,11 +271,13 @@ final class Article_Parser {
 			return false;
 		}
 
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 		$tag = strtolower( $node->tagName );
 		if ( ! in_array( $tag, array( 'h1', 'h2', 'h3', 'h4' ), true ) ) {
 			return false;
 		}
 
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 		$text = $this->normalize_text( $node->textContent );
 
 		return in_array( $text, array( 'پربازدیدهای ماه', 'پربازدید ماه', 'تازه ها', 'تازه‌ها' ), true );
@@ -288,6 +299,7 @@ final class Article_Parser {
 		}
 
 		foreach ( $anchors as $anchor ) {
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 			if ( $anchor instanceof DOMElement && $text === $this->normalize_text( $anchor->textContent ) ) {
 				$matches[] = $anchor;
 			}
@@ -364,14 +376,19 @@ final class Article_Parser {
 	 * @return DOMNode|null
 	 */
 	private function next_node( DOMNode $node ) {
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 		if ( $node->firstChild ) {
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 			return $node->firstChild;
 		}
 
 		while ( $node ) {
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 			if ( $node->nextSibling ) {
+				// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 				return $node->nextSibling;
 			}
+			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
 			$node = $node->parentNode;
 		}
 
@@ -415,11 +432,11 @@ final class Article_Parser {
 	/**
 	 * Build a consistent parser result.
 	 *
-	 * @param string                              $source       List identity.
-	 * @param string                              $status       Result state.
-	 * @param array<int,array<string,string>>     $items        Items.
-	 * @param string                              $date_context Date context.
-	 * @param string                              $reason       Diagnostic reason.
+	 * @param string                   $source       List identity.
+	 * @param string                   $status       Result state.
+	 * @param array<int,array<string,string>> $items Items.
+	 * @param string                   $date_context Date context.
+	 * @param string                   $reason       Diagnostic reason.
 	 * @return array<string,mixed>
 	 */
 	private function result( $source, $status, $items, $date_context, $reason ) {
