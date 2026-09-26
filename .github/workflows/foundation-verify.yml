@@ -18,6 +18,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Verify repository foundation
+      - name: Set up PHP verification runtime
+        uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f
+        with:
+          php-version: '8.3'
+          extensions: dom, libxml, mbstring, xmlreader
+          tools: composer:v2
+          coverage: none
+
+      - name: Verify repository foundation and plugin
         shell: bash
         run: bash scripts/verify-foundation.sh

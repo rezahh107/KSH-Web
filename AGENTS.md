@@ -32,12 +32,30 @@ Do not let generated mockup copy, placeholder text, or visual artifacts override
 - Kanoon article integration is metadata/link mirroring only; article bodies and media are not copied.
 - The target lists are approximately 20 Latest items and Kanoon's own Weekly Popular ordering.
 - Normal visitor requests must not depend on a live request to `kanoon.ir`.
-- Refresh may be approximately daily/nightly.
-- Failed refreshes must preserve the previous last-known-good snapshot.
+- Refresh may be approximately daily/nightly after qualification.
+- Failed refreshes must preserve the previous last-known-good snapshot once persistence exists.
 - The selected article acquisition family is a small site-specific WordPress extractor using WordPress Core HTTP APIs and local snapshot storage.
 - Before enabling writes/scheduling, implementation must provide a read-only preview/qualification path on the real target host.
 
 See `docs/decisions/ADR-001-kanoon-article-list-mirror.md` for the complete contract.
+
+## Current implementation
+
+The first bounded plugin implementation lives at:
+
+`wp-content/plugins/ksh-kanoon-articles/`
+
+Current admitted capability is only the explicit, read-only wp-admin Preview/Test Connection under Tools. It has no production article persistence, scheduled refresh, or frontend article rendering.
+
+Important boundaries:
+
+- opening the admin page and plugin activation must not contact `kanoon.ir`;
+- remote acquisition runs only on the authorized nonce-protected Preview action;
+- Latest and Weekly Popular remain independently reportable;
+- fixture tests do not prove the production host/network/live DOM;
+- production-host acquisition remains `NOT_PROVEN` until the Preview succeeds on the real KSH host.
+
+Do not add persistence, scheduling, frontend presentation, or production deployment as an incidental extension of work on this stage.
 
 ## Design authority
 
@@ -47,13 +65,22 @@ The image is a composition/reference artifact, not textual-content authority. Pr
 
 ## Verification
 
-Current canonical repository verification:
+Canonical repository verification:
 
 ```bash
 bash scripts/verify-foundation.sh
 ```
 
-At this stage there is no proven production build/lint/test stack yet. Do not invent one in prose. When code/tooling is introduced, extend the canonical verification path and update this file.
+It now covers the existing foundation/design integrity plus the admitted plugin source with PHP syntax, WPCS, and deterministic parser/orchestration tests. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+
+Focused checks after dependency installation:
+
+```bash
+composer cs
+composer test
+```
+
+Do not treat static/unit/fixture success as proof of WordPress host networking or live source compatibility.
 
 ## Change boundaries
 

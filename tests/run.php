@@ -1,0 +1,119 @@
+<?php
+/**
+ * Deterministic parser/orchestration test runner.
+ *
+ * These fixtures exercise the admitted parser contract only. They do not claim
+ * the production host can reach kanoon.ir or that the live DOM still matches.
+ */
+
+declare(strict_types=1);
+
+use KSH\KanoonArticles\Article_Parser;
+use KSH\KanoonArticles\Preview_Service;
+
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-source-config.php';
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-article-parser.php';
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-preview-service.php';
+
+if ( ! class_exists( 'DOMDocument' ) ) {
+	fwrite( STDERR, "TEST_ENVIRONMENT_UNAVAILABLE: ext-dom is required for parser tests.\n" );
+	exit( 2 );
+}
+
+$assertions = 0;
+
+function fixture( string $name ): string {
+	$contents = file_get_contents( __DIR__ . '/fixtures/' . $name );
+	if ( false === $contents ) {
+		throw new RuntimeException( 'Unable to read fixture: ' . $name );
+	}
+	return $contents;
+}
+
+function assert_same( $expected, $actual, string $message ): void {
+	global $assertions;
+	++$assertions;
+	if ( $expected !== $actual ) {
+		fwrite( STDERR, "FAIL: {$message}\nExpected: " . var_export( $expected, true ) . "\nActual: " . var_export( $actual, true ) . "\n" );
+		exit( 1 );
+	}
+}
+
+$parser = new Article_Parser();
+
+$latest = $parser->parse_latest( fixture( 'latest-valid.html' ) );
+assert_same( 'success', $latest['status'], 'valid Latest succeeds' );
+assert_same( 2, $latest['count'], 'Latest rejects invalid/foreign candidates' );
+assert_same( 'گفت و گو محمد رهگشای با رامتین بهرامی قهرمان پیشرفت', $latest['items'][0]['title'], 'Latest strips bounded time/view suffix' );
+assert_same( 'https://www.kanoon.ir/Article/474577', $latest['items'][0]['url'], 'Latest canonicalizes relative article URL' );
+assert_same( 'https://www.kanoon.ir/Article/474578', $latest['items'][1]['url'], 'Latest preserves source ordering' );
+assert_same( 'شنبه 4 مهر 1405', $latest['items'][0]['date_context'], 'Latest propagates reliable day context' );
+
+$weekly = $parser->parse_weekly_popular( fixture( 'home-valid.html' ) );
+assert_same( 'success', $weekly['status'], 'valid Weekly Popular succeeds' );
+assert_same( 2, $weekly['count'], 'Weekly rejects foreign candidate and keeps valid items' );
+assert_same( 'https://www.kanoon.ir/Article/467565', $weekly['items'][0]['url'], 'Weekly first item preserved' );
+assert_same( 'https://www.kanoon.ir/Article/467566', $weekly['items'][1]['url'], 'Weekly canonicalizes host/trailing slash' );
+
+$ambiguous = $parser->parse_weekly_popular( fixture( 'home-ambiguous.html' ) );
+assert_same( 'ambiguous', $ambiguous['status'], 'Weekly/Monthly target collision is ambiguous' );
+assert_same( 'weekly_monthly_target_collision', $ambiguous['reason'], 'ambiguity reason is bounded' );
+
+$latest_empty = $parser->parse_latest( fixture( 'latest-empty.html' ) );
+assert_same( 'failure', $latest_empty['status'], 'zero-item Latest is not valid empty success' );
+assert_same( 'latest_zero_valid_items', $latest_empty['reason'], 'zero-item Latest reports reason' );
+
+$latest_missing_boundary = $parser->parse_latest( '<html><body><a href="/Article/1">بدون مرز روز</a></body></html>' );
+assert_same( 'failure', $latest_missing_boundary['status'], 'Latest missing semantic date boundary fails' );
+assert_same( 'latest_date_boundary_missing', $latest_missing_boundary['reason'], 'missing Latest boundary reports reason' );
+
+$weekly_bad = $parser->parse_weekly_popular( fixture( 'home-malformed-items.html' ) );
+assert_same( 'failure', $weekly_bad['status'], 'Weekly with only malformed candidates fails' );
+assert_same( 'weekly_zero_valid_items', $weekly_bad['reason'], 'malformed Weekly reports zero valid items' );
+
+$fetch = static function ( string $url ): array {
+	if ( false !== strpos( $url, '/Article/Days' ) ) {
+		return array(
+			'ok'        => true,
+			'http_code' => 200,
+			'body'      => fixture( 'latest-valid.html' ),
+			'reason'    => '',
+		);
+	}
+	return array(
+		'ok'        => true,
+		'http_code' => 200,
+		'body'      => fixture( 'home-ambiguous.html' ),
+		'reason'    => '',
+	);
+};
+
+$preview = new Preview_Service( $fetch, $parser );
+$run     = $preview->run();
+assert_same( 'success', $run['latest']['status'], 'Latest remains independently successful' );
+assert_same( 'ambiguous', $run['weekly_popular']['status'], 'Weekly remains independently ambiguous' );
+assert_same( 'partial', $run['overall_status'], 'one success plus one ambiguous is never full success' );
+
+$fetch_with_weekly_failure = static function ( string $url ): array {
+	if ( false !== strpos( $url, '/Article/Days' ) ) {
+		return array(
+			'ok'        => true,
+			'http_code' => 200,
+			'body'      => fixture( 'latest-valid.html' ),
+			'reason'    => '',
+		);
+	}
+	return array(
+		'ok'        => false,
+		'http_code' => 503,
+		'body'      => '',
+		'reason'    => 'http_error',
+	);
+};
+
+$partial_failure = ( new Preview_Service( $fetch_with_weekly_failure, $parser ) )->run();
+assert_same( 'success', $partial_failure['latest']['status'], 'Latest success survives independent Weekly fetch failure' );
+assert_same( 'failure', $partial_failure['weekly_popular']['status'], 'Weekly fetch failure is reported independently' );
+assert_same( 'partial', $partial_failure['overall_status'], 'independent list failure never becomes full success' );
+
+echo 'TEST_PASS assertions=' . $assertions . PHP_EOL;
