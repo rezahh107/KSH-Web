@@ -1,0 +1,27 @@
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+wp-config.php
+*.pem
+*.key
+
+# WordPress runtime/generated content
+wp-content/cache/
+wp-content/uploads/
+wp-content/upgrade/
+wp-content/backups/
+wp-content/backup-*/
+wp-content/debug.log
+
+# Logs and temporary files
+*.log
+.tmp/
+tmp/
+.cache/
+
+# Editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
