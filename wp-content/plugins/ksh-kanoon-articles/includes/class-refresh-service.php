@@ -122,6 +122,7 @@ final class Refresh_Service {
 			$reason,
 			$action
 		);
+		$attempt_reason   = $attempt_recorded ? '' : 'attempt_write_failed';
 
 		return array(
 			'source'           => $source,
@@ -135,17 +136,22 @@ final class Refresh_Service {
 			'updated_at'       => is_array( $current ) && isset( $current['updated_at'] ) ? (string) $current['updated_at'] : '',
 			'attempted_at'     => $attempted,
 			'attempt_recorded' => $attempt_recorded,
+			'attempt_reason'   => $attempt_reason,
 		);
 	}
 
 	/**
-	 * Describe the combined refresh outcome without hiding partial preservation.
+	 * Describe the combined refresh outcome without hiding operational write failures.
 	 *
 	 * @param array<string,mixed> $latest Latest outcome.
 	 * @param array<string,mixed> $weekly Weekly outcome.
 	 * @return string
 	 */
 	private function overall_status( $latest, $weekly ) {
+		if ( empty( $latest['attempt_recorded'] ) || empty( $weekly['attempt_recorded'] ) ) {
+			return 'degraded';
+		}
+
 		$updated = 0;
 		if ( 'updated' === $latest['action'] ) {
 			++$updated;
