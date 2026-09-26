@@ -67,7 +67,21 @@ Before persistence/scheduling is enabled, that preview should establish:
 - normalized title/URL/list identity are correct and source order is preserved;
 - malformed/empty/ambiguous results can be detected.
 
-A separate simulation lab is not a prerequisite for this feature because a simulation cannot prove the production host/IP/network path. Until the real-host preview runs, production-host acquisition remains `NOT_PROVEN`.
+A separate simulation lab is not a prerequisite because it cannot prove the production host/IP/network path.
+
+### Current qualification status
+
+This gate was subsequently executed by the Owner on the real KSH WordPress host using the merged v0.1.0 Preview implementation.
+
+Observed at that execution:
+
+- Latest: PASS, 20 valid records, HTTP 200 from `https://www.kanoon.ir/Article/Days`;
+- Weekly Popular: PASS, 16 valid records, HTTP 200 from `https://www.kanoon.ir/`;
+- WordPress version visibly observed: 7.1.2.
+
+Therefore the observed runtime path from the real KSH host through WordPress HTTP acquisition, current returned Kanoon HTML, parser/validation, and normalized results is qualified for that execution. This does not prove future DOM/network stability, persistence behavior, future WP-Cron execution, frontend rendering, or the exact production PHP version.
+
+The architectural qualification requirement remains part of this ADR even though the current gate has been satisfied.
 
 ## Failure model
 
