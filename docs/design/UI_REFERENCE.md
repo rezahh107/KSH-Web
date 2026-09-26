@@ -4,9 +4,10 @@
 
 `docs/design/assets/homepage-responsive-reference.webp`
 
-SHA-256:
+Repository identity:
 
-`bfbeea38587d2d4a3c348332cef0559717386bd2764fceb657646077e6d2151d`
+- Git blob SHA: `4f821a2e0c3a03c897c28eefb50d8ac7312359ce`
+- Size: `19888` bytes
 
 The asset is a reduced, layout-focused WebP derivative of the current responsive concept that integrates the Kanoon article-list module into the existing page structure. Its purpose is fast visual grounding for humans and language/vision models; exact product copy comes from canonical project documents, not from rasterized text in the image.
 
@@ -63,10 +64,10 @@ When using this asset:
 
 ## Asset maintenance
 
-The design asset is integrity-checked by `scripts/verify-foundation.sh`.
+The design asset is integrity-checked by `scripts/verify-foundation.sh` against its Git blob identity.
 
 If the design reference is intentionally replaced:
 
 - update the asset;
-- update the SHA-256 here and in the verification script;
+- update its recorded blob identity here and in the verification script;
 - document the design-authority change in the relevant project/decision record.

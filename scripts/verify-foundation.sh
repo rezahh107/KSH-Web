@@ -31,7 +31,12 @@ grep -Fq 'docs/MOTHER_PROJECT.md' AGENTS.md
 grep -Fq 'ADR-001-kanoon-article-list-mirror.md' AGENTS.md
 grep -Fq 'bash scripts/verify-foundation.sh' AGENTS.md
 
-echo 'bfbeea38587d2d4a3c348332cef0559717386bd2764fceb657646077e6d2151d  docs/design/assets/homepage-responsive-reference.webp' | sha256sum -c -
+expected_design_blob='4f821a2e0c3a03c897c28eefb50d8ac7312359ce'
+actual_design_blob="$(git hash-object docs/design/assets/homepage-responsive-reference.webp)"
+if [[ "$actual_design_blob" != "$expected_design_blob" ]]; then
+  echo "FOUNDATION_VERIFY_FAIL: design reference blob mismatch: expected $expected_design_blob, got $actual_design_blob" >&2
+  exit 1
+fi
 
 tracked="$(git ls-files)"
 for forbidden in '.env' 'wp-config.php'; do
