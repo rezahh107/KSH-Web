@@ -31,7 +31,7 @@ grep -Fq 'docs/MOTHER_PROJECT.md' AGENTS.md
 grep -Fq 'ADR-001-kanoon-article-list-mirror.md' AGENTS.md
 grep -Fq 'bash scripts/verify-foundation.sh' AGENTS.md
 
-echo '96f6b311b99155971aa0b63e537044f61f0a5df015655dd4fceaafdd9b352e3f  docs/design/assets/homepage-responsive-reference.webp' | sha256sum -c -
+echo 'bfbeea38587d2d4a3c348332cef0559717386bd2764fceb657646077e6d2151d  docs/design/assets/homepage-responsive-reference.webp' | sha256sum -c -
 
 tracked="$(git ls-files)"
 for forbidden in '.env' 'wp-config.php'; do

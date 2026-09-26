@@ -6,9 +6,9 @@
 
 SHA-256:
 
-`96f6b311b99155971aa0b63e537044f61f0a5df015655dd4fceaafdd9b352e3f`
+`bfbeea38587d2d4a3c348332cef0559717386bd2764fceb657646077e6d2151d`
 
-The asset is a repository-friendly WebP export of the current responsive concept that integrates the Kanoon article-list module into the existing page structure.
+The asset is a reduced, layout-focused WebP derivative of the current responsive concept that integrates the Kanoon article-list module into the existing page structure. Its purpose is fast visual grounding for humans and language/vision models; exact product copy comes from canonical project documents, not from rasterized text in the image.
 
 ## What the image is authoritative for
 
