@@ -246,8 +246,8 @@ final class Admin_Page {
 	 * @return void
 	 */
 	private function render_refresh_result( $result ) {
-		$status = isset( $result['overall_status'] ) ? (string) $result['overall_status'] : 'failure';
-		$labels = array(
+		$status       = isset( $result['overall_status'] ) ? (string) $result['overall_status'] : 'failure';
+		$labels       = array(
 			'success'   => __( 'Refresh کامل: هر دو Snapshot با candidate معتبر به‌روزرسانی شدند و وضعیت تلاش هر دو فهرست ثبت شد.', 'ksh-kanoon-articles' ),
 			'degraded'  => __( 'Refresh ناقص عملیاتی: وضعیت Snapshotها مطابق نتیجهٔ واقعی حفظ/به‌روزرسانی شد، اما ثبت وضعیت تلاش برای حداقل یک فهرست کامل نشد.', 'ksh-kanoon-articles' ),
 			'partial'   => __( 'Refresh جزئی: یک Snapshot به‌روزرسانی شد و فهرست دیگر دادهٔ معتبر قبلی را حفظ کرد یا بدون Snapshot باقی ماند.', 'ksh-kanoon-articles' ),
