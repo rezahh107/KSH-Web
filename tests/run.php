@@ -49,6 +49,40 @@ assert_same( 'https://www.kanoon.ir/Article/474577', $latest['items'][0]['url'],
 assert_same( 'https://www.kanoon.ir/Article/474578', $latest['items'][1]['url'], 'Latest preserves source ordering' );
 assert_same( 'شنبه 4 مهر 1405', $latest['items'][0]['date_context'], 'Latest propagates reliable day context' );
 
+$multi_day = $parser->parse_latest( fixture( 'latest-multi-day.html' ) );
+assert_same( 'success', $multi_day['status'], 'multi-day Latest succeeds' );
+assert_same( 5, $multi_day['count'], 'later date headings do not terminate Latest traversal' );
+assert_same(
+	array(
+		'https://www.kanoon.ir/Article/910001',
+		'https://www.kanoon.ir/Article/910002',
+		'https://www.kanoon.ir/Article/910003',
+		'https://www.kanoon.ir/Article/910004',
+		'https://www.kanoon.ir/Article/910005',
+	),
+	array_column( $multi_day['items'], 'url' ),
+	'Latest preserves source order across date transitions'
+);
+assert_same( 'شنبه 4 مهر 1405', $multi_day['items'][0]['date_context'], 'first-day article receives first date context' );
+assert_same( 'شنبه 4 مهر 1405', $multi_day['items'][1]['date_context'], 'non-date heading does not change current date context' );
+assert_same( 'یکشنبه 5 مهر 1405', $multi_day['items'][2]['date_context'], 'second-day article receives second date context' );
+assert_same( 'یکشنبه 5 مهر 1405', $multi_day['items'][3]['date_context'], 'second date context remains active until next valid date heading' );
+assert_same( 'دوشنبه 6 مهر 1405', $multi_day['items'][4]['date_context'], 'subsequent valid date headings rebind context repeatedly' );
+
+$limit_html = '<html><body><h3>شنبه 4 مهر 1405</h3>';
+for ( $i = 1; $i <= 10; ++$i ) {
+	$limit_html .= '<a href="/Article/' . ( 930000 + $i ) . '">روز اول ' . $i . '</a>';
+}
+$limit_html .= '<h3>یکشنبه 5 مهر 1405</h3>';
+for ( $i = 11; $i <= 25; ++$i ) {
+	$limit_html .= '<a href="/Article/' . ( 930000 + $i ) . '">روز دوم ' . $i . '</a>';
+}
+$limit_html .= '</body></html>';
+$limited     = $parser->parse_latest( $limit_html );
+assert_same( 20, $limited['count'], 'Latest 20-item limit remains effective across date transitions' );
+assert_same( 'https://www.kanoon.ir/Article/930020', $limited['items'][19]['url'], 'Latest limit preserves the first 20 source-ordered articles' );
+assert_same( 'یکشنبه 5 مهر 1405', $limited['items'][19]['date_context'], 'Latest limit keeps the nearest preceding valid date context' );
+
 $joining = $parser->parse_latest(
 	'<html><body><h3>شنبه 4 مهر 1405</h3>' .
 	'<a href="/Article/474579">گفت‌وگوی قلم‌چی دقایقی قبل 1 بازدید</a></body></html>'
