@@ -19,13 +19,25 @@ final class Snapshot_Store {
 	const OPTION_LATEST_ATTEMPT  = 'ksh_kanoon_articles_latest_attempt';
 	const OPTION_WEEKLY_ATTEMPT  = 'ksh_kanoon_articles_weekly_attempt';
 
-	/** @var callable */
+	/**
+	 * Option reader.
+	 *
+	 * @var callable
+	 */
 	private $get_option;
 
-	/** @var callable */
+	/**
+	 * Option creator.
+	 *
+	 * @var callable
+	 */
 	private $add_option;
 
-	/** @var callable */
+	/**
+	 * Option updater.
+	 *
+	 * @var callable
+	 */
 	private $update_option;
 
 	/**
@@ -135,7 +147,7 @@ final class Snapshot_Store {
 	private function snapshot_from_candidate( $source, $candidate, $updated_at ) {
 		if (
 			'success' !== ( isset( $candidate['status'] ) ? $candidate['status'] : '' ) ||
-			$source !== ( isset( $candidate['source'] ) ? $candidate['source'] : '' ) ||
+			( isset( $candidate['source'] ) ? $candidate['source'] : '' ) !== $source ||
 			empty( $candidate['items'] ) ||
 			! is_array( $candidate['items'] )
 		) {
@@ -160,7 +172,7 @@ final class Snapshot_Store {
 			);
 		}
 
-		if ( isset( $candidate['count'] ) && (int) $candidate['count'] !== count( $items ) ) {
+		if ( isset( $candidate['count'] ) && count( $items ) !== (int) $candidate['count'] ) {
 			return null;
 		}
 
