@@ -137,7 +137,7 @@ final class Admin_Page {
 			<hr>
 			<h2><?php echo esc_html__( 'دادهٔ محلی و Refresh عملیاتی', 'ksh-kanoon-articles' ); ?></h2>
 			<p><?php echo esc_html__( 'این بخش وضعیت Snapshot محلی را نشان می‌دهد. Refresh دستی یک درخواست واقعی به منابع کانون انجام می‌دهد و فقط candidate معتبر هر فهرست را جایگزین Snapshot همان فهرست می‌کند.', 'ksh-kanoon-articles' ); ?></p>
-			<p><strong><?php echo esc_html__( 'اثر جانبی:', 'ksh-kanoon-articles' ); ?></strong> <?php echo esc_html__( 'با اجرای Refresh، Snapshot و وضعیت آخرین تلاش در WordPress Options به‌روزرسانی می‌شوند. شکست یا ابهام یک فهرست Snapshot معتبر قبلی آن فهرست را پاک نمی‌کند.', 'ksh-kanoon-articles' ); ?></p>
+			<p><strong><?php echo esc_html__( 'اثر جانبی:', 'ksh-kanoon-articles' ); ?></strong> <?php echo esc_html__( 'با اجرای Refresh، Snapshot و وضعیت آخرین تلاش ثبت‌شده در WordPress Options به‌روزرسانی می‌شوند. شکست یا ابهام یک فهرست Snapshot معتبر قبلی آن فهرست را پاک نمی‌کند؛ اگر ثبت وضعیت تلاش ناموفق باشد، نتیجهٔ همین اجرا به‌صورت ناقص عملیاتی گزارش می‌شود.', 'ksh-kanoon-articles' ); ?></p>
 
 			<?php if ( is_array( $refresh_result ) ) : ?>
 				<?php $this->render_refresh_result( $refresh_result ); ?>
@@ -248,13 +248,20 @@ final class Admin_Page {
 	private function render_refresh_result( $result ) {
 		$status = isset( $result['overall_status'] ) ? (string) $result['overall_status'] : 'failure';
 		$labels = array(
-			'success'   => __( 'Refresh کامل: هر دو Snapshot با candidate معتبر به‌روزرسانی شدند.', 'ksh-kanoon-articles' ),
+			'success'   => __( 'Refresh کامل: هر دو Snapshot با candidate معتبر به‌روزرسانی شدند و وضعیت تلاش هر دو فهرست ثبت شد.', 'ksh-kanoon-articles' ),
+			'degraded'  => __( 'Refresh ناقص عملیاتی: وضعیت Snapshotها مطابق نتیجهٔ واقعی حفظ/به‌روزرسانی شد، اما ثبت وضعیت تلاش برای حداقل یک فهرست کامل نشد.', 'ksh-kanoon-articles' ),
 			'partial'   => __( 'Refresh جزئی: یک Snapshot به‌روزرسانی شد و فهرست دیگر دادهٔ معتبر قبلی را حفظ کرد یا بدون Snapshot باقی ماند.', 'ksh-kanoon-articles' ),
 			'ambiguous' => __( 'Refresh به‌روزرسانی نداشت و حداقل یک candidate مبهم بود؛ Snapshot قبلی در صورت وجود حفظ شد.', 'ksh-kanoon-articles' ),
 			'failure'   => __( 'Refresh به‌روزرسانی معتبری نداشت؛ Snapshot قبلی در صورت وجود حفظ شد.', 'ksh-kanoon-articles' ),
 		);
+		$notice_class = 'notice-error';
+		if ( 'success' === $status ) {
+			$notice_class = 'notice-success';
+		} elseif ( 'partial' === $status || 'degraded' === $status ) {
+			$notice_class = 'notice-warning';
+		}
 		?>
-		<div class="notice <?php echo esc_attr( 'success' === $status ? 'notice-success' : ( 'partial' === $status ? 'notice-warning' : 'notice-error' ) ); ?> inline">
+		<div class="notice <?php echo esc_attr( $notice_class ); ?> inline">
 			<p><strong><?php echo esc_html( isset( $labels[ $status ] ) ? $labels[ $status ] : $labels['failure'] ); ?></strong></p>
 		</div>
 		<?php
@@ -288,11 +295,18 @@ final class Admin_Page {
 		<?php if ( ! empty( $outcome['reason'] ) ) : ?>
 			<p><strong><?php echo esc_html__( 'Reason:', 'ksh-kanoon-articles' ); ?></strong> <bdi dir="ltr"><?php echo esc_html( $outcome['reason'] ); ?></bdi></p>
 		<?php endif; ?>
+		<?php if ( empty( $outcome['attempt_recorded'] ) ) : ?>
+			<p>
+				<strong><?php echo esc_html( $label ); ?> — <?php echo esc_html__( 'ثبت وضعیت تلاش:', 'ksh-kanoon-articles' ); ?></strong>
+				<?php echo esc_html__( 'ناموفق؛ Snapshot action بالا معتبر است اما این اجرای عملیاتی به‌طور کامل ثبت نشد.', 'ksh-kanoon-articles' ); ?>
+				— <bdi dir="ltr"><?php echo esc_html( isset( $outcome['attempt_reason'] ) ? $outcome['attempt_reason'] : 'attempt_write_failed' ); ?></bdi>
+			</p>
+		<?php endif; ?>
 		<?php
 	}
 
 	/**
-	 * Render current snapshot + latest attempt + next schedule without remote work.
+	 * Render current snapshot + latest recorded attempt + next schedule without remote work.
 	 *
 	 * @return void
 	 */
@@ -304,7 +318,7 @@ final class Admin_Page {
 				<th scope="col"><?php echo esc_html__( 'فهرست', 'ksh-kanoon-articles' ); ?></th>
 				<th scope="col"><?php echo esc_html__( 'Snapshot محلی', 'ksh-kanoon-articles' ); ?></th>
 				<th scope="col"><?php echo esc_html__( 'آخرین موفقیت', 'ksh-kanoon-articles' ); ?></th>
-				<th scope="col"><?php echo esc_html__( 'آخرین تلاش', 'ksh-kanoon-articles' ); ?></th>
+				<th scope="col"><?php echo esc_html__( 'آخرین تلاش ثبت‌شده', 'ksh-kanoon-articles' ); ?></th>
 			</tr></thead>
 			<tbody>
 				<?php $this->render_status_row( 'latest', __( 'تازه‌ها', 'ksh-kanoon-articles' ) ); ?>
@@ -355,7 +369,7 @@ final class Admin_Page {
 					<?php endif; ?>
 					<br><?php $this->render_timestamp( isset( $attempt['attempted_at'] ) ? $attempt['attempted_at'] : '' ); ?>
 				<?php else : ?>
-					<?php echo esc_html__( 'هنوز تلاشی ثبت نشده است.', 'ksh-kanoon-articles' ); ?>
+					<?php echo esc_html__( 'هنوز تلاش ثبت‌شده‌ای نداریم.', 'ksh-kanoon-articles' ); ?>
 				<?php endif; ?>
 			</td>
 		</tr>
