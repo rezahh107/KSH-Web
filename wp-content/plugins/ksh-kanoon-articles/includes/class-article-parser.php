@@ -37,8 +37,7 @@ final class Article_Parser {
 			return $this->result( 'latest', 'failure', array(), '', 'latest_date_boundary_missing' );
 		}
 
-		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-		$date_context = $this->normalize_text( $date_heading->textContent );
+		$date_context = $this->latest_date_context_from_heading( $date_heading );
 		$items        = array();
 		$seen         = array();
 		$node         = $date_heading;
@@ -50,6 +49,12 @@ final class Article_Parser {
 
 			if ( $this->is_sidebar_boundary( $current ) ) {
 				break;
+			}
+
+			$next_date_context = $this->latest_date_context_from_heading( $current );
+			if ( '' !== $next_date_context ) {
+				$date_context = $next_date_context;
+				continue;
 			}
 
 			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
@@ -245,19 +250,40 @@ final class Article_Parser {
 			return null;
 		}
 
-		$weekday_pattern = '(?:شنبه|یکشنبه|دوشنبه|سه\s*شنبه|چهارشنبه|پنج\s*شنبه|جمعه)';
-		$digit           = '0-9۰-۹٠-٩';
-		$month_pattern   = '(?:فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)';
-		$pattern         = '/^' . $weekday_pattern . '\s+[' . $digit . ']{1,2}\s+' . $month_pattern . '\s+[' . $digit . ']{4}$/u';
-
 		foreach ( $headings as $heading ) {
-			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-			if ( $heading instanceof DOMElement && 1 === preg_match( $pattern, $this->normalize_text( $heading->textContent ) ) ) {
+			if ( '' !== $this->latest_date_context_from_heading( $heading ) ) {
 				return $heading;
 			}
 		}
 
 		return null;
+	}
+
+	/**
+	 * Resolve date context only from a valid Latest Persian date heading.
+	 *
+	 * @param DOMNode $node Candidate node.
+	 * @return string
+	 */
+	private function latest_date_context_from_heading( DOMNode $node ) {
+		if ( ! $node instanceof DOMElement ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
+		$tag = strtolower( $node->tagName );
+		if ( ! in_array( $tag, array( 'h1', 'h2', 'h3', 'h4' ), true ) ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
+		$text            = $this->normalize_text( $node->textContent );
+		$weekday_pattern = '(?:شنبه|یکشنبه|دوشنبه|سه\s*شنبه|چهارشنبه|پنج\s*شنبه|جمعه)';
+		$digit           = '0-9۰-۹٠-٩';
+		$month_pattern   = '(?:فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)';
+		$pattern         = '/^' . $weekday_pattern . '\s+[' . $digit . ']{1,2}\s+' . $month_pattern . '\s+[' . $digit . ']{4}$/u';
+
+		return 1 === preg_match( $pattern, $text ) ? $text : '';
 	}
 
 	/**
