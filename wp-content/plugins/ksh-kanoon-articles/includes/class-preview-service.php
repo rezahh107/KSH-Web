@@ -27,6 +27,8 @@ final class Preview_Service {
 	private $parser;
 
 	/**
+	 * Create the read-only Preview orchestrator.
+	 *
 	 * @param callable       $fetch  Callable accepting URL and returning acquisition result.
 	 * @param Article_Parser $parser Parser.
 	 */

@@ -432,11 +432,11 @@ final class Article_Parser {
 	/**
 	 * Build a consistent parser result.
 	 *
-	 * @param string                   $source       List identity.
-	 * @param string                   $status       Result state.
-	 * @param array<int,array<string,string>> $items Items.
-	 * @param string                   $date_context Date context.
-	 * @param string                   $reason       Diagnostic reason.
+	 * @param string                          $source       List identity.
+	 * @param string                          $status       Result state.
+	 * @param array<int,array<string,string>> $items        Items.
+	 * @param string                          $date_context Date context.
+	 * @param string                          $reason       Diagnostic reason.
 	 * @return array<string,mixed>
 	 */
 	private function result( $source, $status, $items, $date_context, $reason ) {

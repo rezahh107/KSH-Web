@@ -24,6 +24,8 @@ final class Admin_Page {
 	private $preview;
 
 	/**
+	 * Create the native admin Preview controller.
+	 *
 	 * @param Preview_Service $preview Preview service.
 	 */
 	public function __construct( Preview_Service $preview ) {
@@ -55,7 +57,7 @@ final class Admin_Page {
 			wp_die( esc_html__( 'شما اجازه دسترسی به این ابزار را ندارید.', 'ksh-kanoon-articles' ) );
 		}
 
-		$result = null;
+		$result         = null;
 		$request_method = isset( $_SERVER['REQUEST_METHOD'] ) ? strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ) ) ) : '';
 		if ( 'POST' === $request_method ) {
 			check_admin_referer( self::NONCE );
