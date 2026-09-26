@@ -37,10 +37,11 @@ final class Article_Parser {
 			return $this->result( 'latest', 'failure', array(), '', 'latest_date_boundary_missing' );
 		}
 
-		$date_context = $this->latest_date_context_from_heading( $date_heading );
-		$items        = array();
-		$seen         = array();
-		$node         = $date_heading;
+		$date_context         = $this->latest_date_context_from_heading( $date_heading );
+		$current_date_context = $date_context;
+		$items                = array();
+		$seen                 = array();
+		$node                 = $date_heading;
 
 		$node = $this->next_node( $node );
 		while ( $node ) {
@@ -53,7 +54,7 @@ final class Article_Parser {
 
 			$next_date_context = $this->latest_date_context_from_heading( $current );
 			if ( '' !== $next_date_context ) {
-				$date_context = $next_date_context;
+				$current_date_context = $next_date_context;
 				continue;
 			}
 
@@ -62,7 +63,7 @@ final class Article_Parser {
 				continue;
 			}
 
-			$item = $this->normalize_article_anchor( $current, 'latest', $date_context );
+			$item = $this->normalize_article_anchor( $current, 'latest', $current_date_context );
 			if ( ! $item || isset( $seen[ $item['url'] ] ) ) {
 				continue;
 			}
