@@ -7,10 +7,11 @@ The repository contains the site-specific **KSH Kanoon Articles** plugin. It cov
 ## Start here
 
 1. [`docs/MOTHER_PROJECT.md`](docs/MOTHER_PROJECT.md) — canonical project charter, scope, locked decisions, boundaries, and current status.
-2. [`docs/design/UI_REFERENCE.md`](docs/design/UI_REFERENCE.md) — responsive UI reference and its authority limits.
-3. [`docs/decisions/ADR-001-kanoon-article-list-mirror.md`](docs/decisions/ADR-001-kanoon-article-list-mirror.md) — locked architecture for mirroring Kanoon article-list metadata.
-4. [`AGENTS.md`](AGENTS.md) — concise operational entrypoint for AI-assisted engineering.
-5. [`docs/REPOSITORY_FOUNDATION.md`](docs/REPOSITORY_FOUNDATION.md) — repository-foundation rationale and intentionally deferred work.
+2. [`docs/SITE_INFORMATION_ARCHITECTURE.md`](docs/SITE_INFORMATION_ARCHITECTURE.md) — proposed Owner-review reference for page/destination structure, names, URLs, navigation, and indexing intent; only explicitly marked Owner locks are final.
+3. [`docs/design/UI_REFERENCE.md`](docs/design/UI_REFERENCE.md) — responsive UI reference and its authority limits.
+4. [`docs/decisions/ADR-001-kanoon-article-list-mirror.md`](docs/decisions/ADR-001-kanoon-article-list-mirror.md) — locked architecture for mirroring Kanoon article-list metadata.
+5. [`AGENTS.md`](AGENTS.md) — concise operational entrypoint for AI-assisted engineering.
+6. [`docs/REPOSITORY_FOUNDATION.md`](docs/REPOSITORY_FOUNDATION.md) — repository-foundation rationale and intentionally deferred work.
 
 ## Kanoon article plugin
 
@@ -108,23 +109,23 @@ After this refinement is merged and v0.3.1 is installed, keep the existing `[ksh
 - A locally rendered `تازه‌ها / پربازدید هفته` module reading only validated local snapshots through `[ksh_kanoon_articles]`.
 - No full remote-article mirroring.
 
-## Elementor public homepage candidate
+## Historical Elementor public-homepage qualification artifact
 
-The qualified presentation stack for the current homepage work is **Hello Elementor 3.5.1 + Elementor 4.3.2 + Elementor Pro 4.3.0** on the observed KSH WordPress runtime. The repository still does not own a custom theme and this implementation does not introduce one.
+The observed homepage qualification stack was **Hello Elementor 3.5.1 + Elementor 4.3.2 + Elementor Pro 4.3.0** on the KSH WordPress runtime. The repository still does not own a custom theme.
 
-The current WordPress front page remains the existing Plato managers' portal (page ID 62, slug `plato-user-panel`, template `tpl-user-panel.php`). The Owner decision separates that portal from the future public homepage. The observed global Elementor Theme Builder header **Header01** (template ID 341, general header condition) remains global chrome and is not duplicated or modified by the page-body artifact.
+The current WordPress front page remains the existing Plato managers' portal (page ID 62, slug `plato-user-panel`, template `tpl-user-panel.php`). The Owner decision separates that portal from the public homepage. The observed global Elementor Theme Builder header **Header01** (template ID 341, general header condition) remains global chrome.
 
-The first source-controlled public homepage body candidate is:
+The merged PR #7 page-body artifact is retained at:
 
 `elementor/homepage/ksh-public-homepage-body-v1.json`
 
-It is a bounded Elementor page-template JSON containing a structural public hero, the confirmed manager portal action to `/plato-user-panel/`, and one `[ksh_kanoon_articles]` Shortcode widget. It contains no global header/footer template, site settings, live front-page assignment, Plato implementation, remote article acquisition, external service URLs, or invented contact data.
+It is **historical/technical qualification evidence only** and is **not the selected final homepage implementation method**. The Owner will manually build the final public pages in Elementor. Future work must not treat import/deployment of this JSON as the final homepage path.
 
-Canonical verification now includes deterministic homepage-template contract validation through:
+Canonical verification still validates the retained artifact's deterministic contract through:
 
 `php scripts/validate-elementor-homepage.php`
 
-Actual import into Elementor 4.3.2 and authentic responsive rendering on the KSH host remain `NOT_PROVEN` until the new draft page is imported and inspected. See `elementor/homepage/README.md` for the bounded post-merge procedure.
+That check protects the historical artifact from silent drift; it does not prove or prescribe the final manually built homepage. See `elementor/homepage/README.md` for the artifact's evidence boundary, and `docs/SITE_INFORMATION_ARCHITECTURE.md` for the current proposed destination/navigation reference.
 
 ## License
 
