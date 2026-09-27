@@ -76,9 +76,6 @@ final class Frontend_Renderer {
 								<?php foreach ( $list['items'] as $item ) : ?>
 									<li class="ksh-kanoon-articles__item">
 										<a class="ksh-kanoon-articles__link" href="<?php echo esc_url( $item['url'] ); ?>"><?php echo esc_html( $item['title'] ); ?></a>
-										<?php if ( 'latest' === $list['source'] && '' !== $item['date_context'] ) : ?>
-											<span class="ksh-kanoon-articles__meta"><?php echo esc_html( $item['date_context'] ); ?></span>
-										<?php endif; ?>
 									</li>
 								<?php endforeach; ?>
 							</ul>
