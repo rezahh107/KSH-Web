@@ -4,7 +4,6 @@
 	--ksh-kanoon-accent: #b56a00;
 	--ksh-kanoon-surface: #f7f8fb;
 	--ksh-kanoon-border: #dfe4ea;
-	--ksh-kanoon-muted: #596575;
 	box-sizing: border-box;
 	inline-size: 100%;
 	margin-block: clamp(2rem, 5vw, 4rem);
