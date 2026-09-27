@@ -108,6 +108,24 @@ After this refinement is merged and v0.3.1 is installed, keep the existing `[ksh
 - A locally rendered `تازه‌ها / پربازدید هفته` module reading only validated local snapshots through `[ksh_kanoon_articles]`.
 - No full remote-article mirroring.
 
+## Elementor public homepage candidate
+
+The qualified presentation stack for the current homepage work is **Hello Elementor 3.5.1 + Elementor 4.3.2 + Elementor Pro 4.3.0** on the observed KSH WordPress runtime. The repository still does not own a custom theme and this implementation does not introduce one.
+
+The current WordPress front page remains the existing Plato managers' portal (page ID 62, slug `plato-user-panel`, template `tpl-user-panel.php`). The Owner decision separates that portal from the future public homepage. The observed global Elementor Theme Builder header **Header01** (template ID 341, general header condition) remains global chrome and is not duplicated or modified by the page-body artifact.
+
+The first source-controlled public homepage body candidate is:
+
+`elementor/homepage/ksh-public-homepage-body-v1.json`
+
+It is a bounded Elementor page-template JSON containing a structural public hero, the confirmed manager portal action to `/plato-user-panel/`, and one `[ksh_kanoon_articles]` Shortcode widget. It contains no global header/footer template, site settings, live front-page assignment, Plato implementation, remote article acquisition, external service URLs, or invented contact data.
+
+Canonical verification now includes deterministic homepage-template contract validation through:
+
+`php scripts/validate-elementor-homepage.php`
+
+Actual import into Elementor 4.3.2 and authentic responsive rendering on the KSH host remain `NOT_PROVEN` until the new draft page is imported and inspected. See `elementor/homepage/README.md` for the bounded post-merge procedure.
+
 ## License
 
 No license has been declared yet. Do not add or infer a license without an explicit Owner decision.
