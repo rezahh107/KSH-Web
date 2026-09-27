@@ -174,7 +174,7 @@ Current platform decision: **WordPress**.
 
 The Kanoon article-list responsibility lives as a **small site-specific WordPress plugin-level component**, independent enough from presentation that source parsing/refresh can be maintained without coupling visitor UI to remote availability.
 
-Current backend implementation includes read-only Preview, independent local last-known-good snapshots, bounded per-list attempt state, explicit manual refresh, and one approximately-daily native WP-Cron path. The frontend article module remains intentionally separate and not yet implemented.
+Current backend implementation includes read-only Preview, independent local last-known-good snapshots, bounded per-list attempt state, explicit Manual/Cron refresh attribution through one canonical refresh service, one approximately-daily native WP-Cron path, separate latest Manual/Cron run summaries, and a one-click read-only JSON diagnostic export from the existing Tools page. The frontend article module remains intentionally separate and not yet implemented.
 
 Use WordPress-native APIs where appropriate and keep environment-specific secrets out of Git.
 
@@ -251,17 +251,18 @@ As implementation evolves, extend this same canonical verification path with app
 
 - read-only Preview/Test Connection;
 - independent validated per-list snapshot storage using WordPress Options;
-- bounded per-list latest-attempt status;
-- explicit manual refresh using the same canonical refresh semantics as scheduling;
+- bounded per-list latest-attempt status with explicit origin/run identity for new attempts and legacy `unknown` compatibility;
+- explicit Manual and scheduled Cron entry paths that reuse the same canonical acquisition/validation/persistence implementation;
+- separate non-autoloaded latest Manual and latest Cron run summaries, without unbounded history;
 - one native daily WP-Cron hook with upgrade-safe schedule existence repair;
-- deactivation unscheduling without deleting valid snapshots.
+- one-click authenticated JSON diagnostic download containing only bounded plugin-owned/public metadata and safe WordPress/PHP runtime facts;
+- deterministic separation between schedule registration and persisted Cron execution evidence;
+- deactivation unscheduling without deleting valid snapshots or diagnostic run summaries.
 
 ### Not yet proven / not yet implemented
 
-- actual future WP-Cron firing on the real host after this stage is installed;
-- real-host persistence/manual-refresh/schedule-registration behavior until post-merge runtime validation;
+- actual future WP-Cron firing on the real KSH host after v0.2.1 is installed; this remains `NOT_PROVEN` until a real-host diagnostic report contains persisted `trigger=cron` run evidence;
 - future source-DOM/network stability;
-- exact production PHP version;
 - final public/frontend article presentation;
 - production deployment procedure beyond the Owner's normal plugin installation path.
 
@@ -271,11 +272,19 @@ Do not upgrade any of these to `PASS` from repository tests alone.
 
 ## 12. Near-term implementation sequence
 
-The read-only real-host acquisition gate has passed. The current implementation stage adds validated local persistence and bounded native refresh scheduling.
+The read-only real-host acquisition gate has passed, and the backend now includes validated local persistence, bounded native refresh scheduling, explicit refresh-origin observability, and the one-click diagnostic export required for operational qualification.
 
-After this stage is merged, the next required real-host validation is to verify plugin upgrade/install, Preview regression, manual snapshot creation, admin counts/timestamps/status, next-event registration, and absence of remote acquisition on ordinary page loads. Actual future cron execution remains separately observational until it fires or is explicitly triggered through a supported runtime test path.
+The Owner's normal post-merge/runtime workflow is:
 
-Do **not** proceed to the frontend article module until that persistence/manual-refresh/schedule-registration validation is complete.
+1. install/update the plugin;
+2. allow normal site operation / WP-Cron opportunity;
+3. open the existing plugin Tools page;
+4. click **دانلود گزارش JSON**;
+5. provide that single JSON file to the Project Manager / LLM.
+
+That report is the preferred support bundle. It must remain read-only and distinguish `event_registered=true` from `cron_execution_observed=true`. A registered event without persisted Cron-origin run evidence is not Cron PASS.
+
+Do **not** proceed to the frontend article module based on repository tests alone; use the real-host diagnostic report for the remaining runtime qualification facts.
 
 For the broader site, implementation should follow the accepted visual structure and actual WordPress environment rather than creating speculative infrastructure.
 
