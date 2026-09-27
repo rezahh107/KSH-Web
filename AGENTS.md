@@ -50,17 +50,21 @@ Current backend capability includes:
 - the explicit read-only wp-admin Preview/Test Connection under Tools;
 - Owner-observed real-host Preview success for Latest (20 records / HTTP 200) and Weekly Popular (16 records / HTTP 200);
 - independent non-autoloaded local snapshots and bounded per-list attempt state;
-- one canonical manual/scheduled refresh service;
+- one canonical refresh service with explicit `manual` / `cron` origin at its production entry points;
+- separate non-autoloaded latest Manual/Cron run summaries plus bounded run identity;
 - one daily native WP-Cron hook with cheap upgrade-safe schedule self-healing;
+- one-click authenticated **دانلود گزارش JSON** support bundle from the existing Tools page;
 - deactivation unscheduling without snapshot deletion.
 
 Important boundaries:
 
-- opening the admin page and plugin activation must not contact `kanoon.ir`;
+- opening the admin page, plugin activation, and JSON report generation/download must not contact `kanoon.ir`;
 - remote acquisition runs only on explicit Preview, explicit Manual Refresh, or the due scheduled refresh callback;
+- `wp_next_scheduled()` / schedule registration never proves the Cron callback executed;
+- actual Cron execution is considered observed only from persisted `cron`-origin run evidence written by the scheduled callback path;
 - Latest and Weekly Popular remain independently validatable and replaceable;
-- repository/stub tests do not prove actual future WP-Cron firing;
-- the observed real-host Preview qualified acquisition/parser behavior at that execution time, but persistence on the real host, future DOM/network stability, frontend behavior, and exact production PHP remain separate evidence boundaries.
+- repository/stub tests prove attribution/export logic but do not prove actual future WP-Cron firing on the KSH host;
+- the observed real-host Preview qualified acquisition/parser behavior at that execution time, but future DOM/network stability and frontend behavior remain separate evidence boundaries.
 
 Do not add frontend presentation or production deployment as an incidental extension of this stage.
 
@@ -78,7 +82,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It now covers the existing foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle tests. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It now covers the existing foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export tests. Treat the downloaded real-host JSON as the preferred operational qualification artifact; repository tests still cannot prove that KSH WP-Cron actually fired. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
