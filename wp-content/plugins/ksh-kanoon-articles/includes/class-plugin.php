@@ -20,9 +20,9 @@ final class Plugin {
 	 * @return void
 	 */
 	public static function boot() {
-		$fetcher   = new Remote_Fetcher();
-		$parser    = new Article_Parser();
-		$preview   = new Preview_Service( array( $fetcher, 'fetch' ), $parser );
+		$fetcher    = new Remote_Fetcher();
+		$parser     = new Article_Parser();
+		$preview    = new Preview_Service( array( $fetcher, 'fetch' ), $parser );
 		$store      = new Snapshot_Store();
 		$refresh    = new Refresh_Service( $preview, $store );
 		$scheduler  = new Scheduler();
