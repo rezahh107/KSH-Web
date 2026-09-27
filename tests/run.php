@@ -10,14 +10,19 @@ declare(strict_types=1);
 
 use KSH\KanoonArticles\Admin_Page;
 use KSH\KanoonArticles\Article_Parser;
+use KSH\KanoonArticles\Diagnostic_Report;
 use KSH\KanoonArticles\Plugin;
 use KSH\KanoonArticles\Preview_Service;
 use KSH\KanoonArticles\Refresh_Service;
 use KSH\KanoonArticles\Scheduler;
 use KSH\KanoonArticles\Snapshot_Store;
 
-$GLOBALS['ksh_test_actions'] = array();
-$GLOBALS['ksh_test_cron']    = array();
+$GLOBALS['ksh_test_actions']          = array();
+$GLOBALS['ksh_test_cron']             = array();
+$GLOBALS['ksh_test_current_user_can'] = true;
+$GLOBALS['ksh_test_capability']       = null;
+$GLOBALS['ksh_test_nonce_action']     = null;
+$GLOBALS['wp_version']                = '7.1.2';
 
 if ( ! function_exists( 'add_action' ) ) {
 	function add_action( $hook, $callback ) {
@@ -26,13 +31,21 @@ if ( ! function_exists( 'add_action' ) ) {
 }
 if ( ! function_exists( 'wp_next_scheduled' ) ) {
 	function wp_next_scheduled( $hook ) {
-		return isset( $GLOBALS['ksh_test_cron'][ $hook ] ) ? $GLOBALS['ksh_test_cron'][ $hook ] : false;
+		return isset( $GLOBALS['ksh_test_cron'][ $hook ]['timestamp'] ) ? $GLOBALS['ksh_test_cron'][ $hook ]['timestamp'] : false;
 	}
 }
 if ( ! function_exists( 'wp_schedule_event' ) ) {
 	function wp_schedule_event( $timestamp, $recurrence, $hook ) {
-		$GLOBALS['ksh_test_cron'][ $hook ] = (int) $timestamp;
+		$GLOBALS['ksh_test_cron'][ $hook ] = array(
+			'timestamp'  => (int) $timestamp,
+			'recurrence' => (string) $recurrence,
+		);
 		return true;
+	}
+}
+if ( ! function_exists( 'wp_get_schedule' ) ) {
+	function wp_get_schedule( $hook ) {
+		return isset( $GLOBALS['ksh_test_cron'][ $hook ]['recurrence'] ) ? $GLOBALS['ksh_test_cron'][ $hook ]['recurrence'] : false;
 	}
 }
 if ( ! function_exists( 'wp_clear_scheduled_hook' ) ) {
@@ -57,7 +70,10 @@ if ( ! function_exists( 'esc_url' ) ) {
 	function esc_url( $text ) { return (string) $text; }
 }
 if ( ! function_exists( 'current_user_can' ) ) {
-	function current_user_can() { return true; }
+	function current_user_can( $capability = '' ) {
+		$GLOBALS['ksh_test_capability'] = $capability;
+		return ! empty( $GLOBALS['ksh_test_current_user_can'] );
+	}
 }
 if ( ! function_exists( 'wp_die' ) ) {
 	function wp_die( $message ) { throw new RuntimeException( (string) $message ); }
@@ -72,7 +88,10 @@ if ( ! function_exists( 'wp_unslash' ) ) {
 	function wp_unslash( $value ) { return $value; }
 }
 if ( ! function_exists( 'check_admin_referer' ) ) {
-	function check_admin_referer() { return 1; }
+	function check_admin_referer( $action = -1 ) {
+		$GLOBALS['ksh_test_nonce_action'] = $action;
+		return 1;
+	}
 }
 if ( ! function_exists( 'wp_nonce_field' ) ) {
 	function wp_nonce_field() { echo '<input type="hidden" name="_wpnonce" value="test">'; }
@@ -83,6 +102,18 @@ if ( ! function_exists( 'submit_button' ) ) {
 if ( ! function_exists( 'add_management_page' ) ) {
 	function add_management_page() { return 'tools_page_ksh'; }
 }
+if ( ! function_exists( 'admin_url' ) ) {
+	function admin_url( $path = '' ) { return 'https://example.test/wp-admin/' . ltrim( (string) $path, '/' ); }
+}
+if ( ! function_exists( 'wp_json_encode' ) ) {
+	function wp_json_encode( $value, $flags = 0 ) { return json_encode( $value, $flags ); }
+}
+if ( ! function_exists( 'nocache_headers' ) ) {
+	function nocache_headers() { return null; }
+}
+if ( ! function_exists( 'wp_timezone_string' ) ) {
+	function wp_timezone_string() { return 'Asia/Tehran'; }
+}
 
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-source-config.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-article-parser.php';
@@ -90,6 +121,7 @@ require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/clas
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-snapshot-store.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-refresh-service.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-scheduler.php';
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-diagnostic-report.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-admin-page.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-remote-fetcher.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-plugin.php';
