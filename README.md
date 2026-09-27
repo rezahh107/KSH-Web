@@ -20,15 +20,15 @@ Plugin source:
 wp-content/plugins/ksh-kanoon-articles/
 ```
 
-Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.3.0**.
+Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.3.1**.
 
-The wp-admin surface remains under **Tools → آزمون اتصال مقاله‌های کانون** and now exposes three bounded actions:
+The wp-admin surface remains under **Tools → آزمون اتصال مقاله‌های کانون** and exposes three bounded actions:
 
 - **Preview/Test Connection** — remote read + parse/validation only; it never mutates local snapshots.
 - **Refresh Local Data Now** — remote acquisition through the same qualified candidate producer; only successful validated candidates replace the corresponding local list snapshot and the run is explicitly attributed as `manual`.
 - **دانلود گزارش JSON** — authenticated read-only download of current plugin/runtime evidence; it performs no remote acquisition, Refresh, option write, or Cron schedule mutation.
 
-Latest and Weekly Popular snapshots are independent. A failed, empty, malformed, or ambiguous candidate cannot erase a previous valid snapshot for that list. Per-list last-attempt metadata is stored separately from last-known-good data and now carries explicit `manual` / `cron` origin plus a bounded run identifier for new executions; legacy unattributed attempts remain readable as `unknown`.
+Latest and Weekly Popular snapshots are independent. A failed, empty, malformed, or ambiguous candidate cannot erase a previous valid snapshot for that list. Per-list last-attempt metadata is stored separately from last-known-good data and carries explicit `manual` / `cron` origin plus a bounded run identifier for new executions; legacy unattributed attempts remain readable as `unknown`.
 
 The plugin uses WordPress Options for the small local state and one native daily WP-Cron hook. It preserves only the latest bounded Manual run summary and latest bounded Cron run summary as separate non-autoloaded options; there is no unbounded activity history. A cheap `init` schedule-existence check self-heals the schedule after an in-place plugin upgrade; this check never performs remote acquisition. Deactivation unschedules the hook but deliberately preserves valid snapshots and diagnostic evidence.
 
@@ -42,11 +42,11 @@ Public placement seam:
 [ksh_kanoon_articles]
 ```
 
-The shortcode delegates to a reusable renderer that reads `Snapshot_Store::get_snapshot()` only. It renders the canonical `تازه‌های کانون` section with `تازه‌ها` and `پربازدید هفته`, preserves stored ordering, renders every available validated item, shows non-empty Latest `date_context`, escapes all output, and fails softly when one or both lists are unavailable. Presentation is Persian RTL, responsive, scoped below `.ksh-kanoon-articles`, and uses no frontend JavaScript.
+The shortcode delegates to a reusable renderer that reads `Snapshot_Store::get_snapshot()` only. It renders the canonical `تازه‌های کانون` section with `تازه‌ها` and `پربازدید هفته`, preserves stored ordering, renders every available validated item, escapes all output, and fails softly when one or both lists are unavailable. `date_context` remains part of validated local snapshot/diagnostic data but is intentionally not displayed in the public module. Presentation is Persian RTL, responsive, scoped below `.ksh-kanoon-articles`, uses no frontend JavaScript, and lets each desktop panel keep its own natural content height.
 
 ## Real-host qualification evidence
 
-Two distinct real-host gates have now been observed.
+Three bounded real-host observations now exist.
 
 The Owner first executed the merged v0.1.0 read-only Preview on the real KSH WordPress host:
 
@@ -64,7 +64,9 @@ After merged PR #4, the Owner installed v0.2.1 and downloaded the plugin diagnos
 - Weekly Popular candidate/local count 16;
 - `observability_incomplete=false` and diagnostic state `CRON_EXECUTION_OBSERVED`.
 
-This proves the observed chain `WP-Cron → acquisition → parser/validation → independent local persistence → diagnostic persistence` for that execution. It does **not** guarantee future Cron firing, future Kanoon DOM/network stability, or real-host visual correctness of the new v0.3.0 frontend.
+This proves the observed chain `WP-Cron → acquisition → parser/validation → independent local persistence → diagnostic persistence` for that execution. It does **not** guarantee future Cron firing or future Kanoon DOM/network stability.
+
+The Owner also installed v0.3.0 and rendered `[ksh_kanoon_articles]` on the real KSH site. Desktop and mobile captures showed both lists rendering, the intended two-column desktop arrangement, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. That observed placement/rendering path is therefore no longer wholly `NOT_PROVEN`. The captures also exposed two presentation issues now addressed in v0.3.1: repeated public Latest date metadata and default Grid stretching that made the shorter panel artificially tall. Final visual acceptance remains pending Owner revalidation of the refined version.
 
 ## Development verification
 
@@ -89,13 +91,13 @@ composer cs
 composer test
 ```
 
-Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. They cover Manual/Cron attribution, run correlation, separate latest Manual/Cron summaries, legacy-attempt compatibility, schedule-vs-execution semantics, read-only JSON generation/download, privacy exclusions, local-only frontend rendering/fail-soft behavior, output escaping, ordering/no-truncation, shortcode registration, and scoped responsive CSS contracts. They prove only the exercised deterministic behavior; they do not guarantee future Cron firing, future Kanoon HTML compatibility, or authentic browser visual fidelity.
+Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. They cover Manual/Cron attribution, run correlation, separate latest Manual/Cron summaries, legacy-attempt compatibility, schedule-vs-execution semantics, read-only JSON generation/download, privacy exclusions, local-only frontend rendering/fail-soft behavior, output escaping, ordering/no-truncation, shortcode registration, and scoped responsive CSS contracts. They prove only the exercised deterministic behavior; they do not guarantee future Cron firing, future Kanoon HTML compatibility, or final authentic browser visual acceptance of v0.3.1.
 
 ## Operational qualification workflow
 
 The v0.2.1 diagnostic has already established one successful real Cron-origin execution. The JSON download remains the preferred bounded support artifact because it is read-only and does not contact `kanoon.ir`.
 
-After this frontend change is merged and v0.3.0 is installed, the safest real-host validation is to place `[ksh_kanoon_articles]` through the site's ordinary WordPress/page-builder Shortcode surface, verify both local lists render without triggering acquisition, inspect desktop/mobile presentation, and re-download the diagnostic JSON to confirm scheduler/snapshot state remains intact.
+After this refinement is merged and v0.3.1 is installed, keep the existing `[ksh_kanoon_articles]` placement, verify both local lists still render without triggering acquisition, capture representative desktop/mobile results, confirm per-item date lines are absent, confirm the shorter desktop panel ends at its natural content height, confirm there is no horizontal overflow, and re-download the diagnostic JSON to verify stored snapshot metadata, scheduler state, and observability remain intact.
 
 ## Product direction
 
