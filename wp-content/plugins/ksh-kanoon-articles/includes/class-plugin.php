@@ -12,7 +12,7 @@ namespace KSH\KanoonArticles;
  */
 final class Plugin {
 
-	const VERSION = '0.2.1';
+	const VERSION = '0.3.0';
 
 	/**
 	 * Bootstrap plugin hooks.
@@ -28,8 +28,11 @@ final class Plugin {
 		$scheduler  = new Scheduler();
 		$diagnostic = new Diagnostic_Report( $store, $scheduler );
 		$admin      = new Admin_Page( $preview, $refresh, $store, $scheduler, $diagnostic );
+		$renderer   = new Frontend_Renderer( $store );
+		$shortcode  = new Shortcode( $renderer );
 
 		$scheduler->register( $refresh );
+		$shortcode->register();
 		add_action( 'admin_menu', array( $admin, 'register' ) );
 		add_action( 'admin_post_' . Admin_Page::EXPORT_ACTION, array( $admin, 'download_diagnostic' ) );
 	}
