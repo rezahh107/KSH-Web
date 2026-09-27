@@ -702,6 +702,130 @@ assert_same( true, $summary_fail_report['assessment']['cron_attempts_without_mat
 assert_same( true, $summary_fail_report['assessment']['observability_incomplete'], 'run-summary persistence failure is explicitly reported as incomplete observability' );
 assert_same( 'SCHEDULED_NOT_YET_OBSERVED', $summary_fail_report['assessment']['diagnostic_state'], 'run-summary write failure stays unobserved despite registered schedule' );
 
+/* Per-list attempt correlation fails closed for partial/interleaved Manual and Cron state. */
+$diagnostic_attempt = static function ( $source, $trigger, $run_id ) {
+	return array(
+		'schema_version'   => Snapshot_Store::ATTEMPT_SCHEMA_VERSION,
+		'source'           => $source,
+		'trigger'          => $trigger,
+		'run_id'           => $run_id,
+		'attempted_at'     => '2026-09-27T10:20:00+00:00',
+		'candidate_status' => 'success',
+		'http_code'        => 200,
+		'reason'           => '',
+		'action'           => 'updated',
+	);
+};
+$diagnostic_summary = static function ( $trigger, $run_id ) {
+	return array(
+		'schema_version' => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
+		'trigger'        => $trigger,
+		'run_id'         => $run_id,
+		'started_at'     => '2026-09-27T10:19:00+00:00',
+		'completed_at'   => '2026-09-27T10:20:00+00:00',
+		'overall_status' => 'success',
+		'lists'          => array(),
+	);
+};
+$build_correlation_report = static function ( array $values ) use ( $diagnostic_scheduler ): array {
+	$get = static function ( $name, $default = false ) use ( $values ) {
+		return array_key_exists( $name, $values ) ? $values[ $name ] : $default;
+	};
+	$reject_write = static function ( $name, $value ) {
+		throw new RuntimeException( 'correlation diagnostic must remain read-only: ' . $name );
+	};
+	$correlation_store = new Snapshot_Store( $get, $reject_write, $reject_write );
+
+	return ( new Diagnostic_Report(
+		$correlation_store,
+		$diagnostic_scheduler,
+		static function (): string { return '2026-09-27T10:21:00+00:00'; }
+	) )->build();
+};
+
+$matching_cron_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-current' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-current' ),
+		Snapshot_Store::OPTION_LAST_CRON_RUN   => $diagnostic_summary( 'cron', 'cron-current' ),
+	)
+);
+assert_same( false, $matching_cron_report['assessment']['cron_attempts_without_matching_summary'], 'matching Cron per-list attempts and summary are complete' );
+assert_same( false, $matching_cron_report['assessment']['observability_incomplete'], 'fully matching current Cron run has complete observability' );
+
+$latest_newer_cron_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-newer' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-older' ),
+	)
+);
+assert_same( true, $latest_newer_cron_report['assessment']['cron_attempts_without_matching_summary'], 'newer Latest Cron attempt without matching summary exposes a gap despite older Weekly attempt' );
+assert_same( true, $latest_newer_cron_report['assessment']['observability_incomplete'], 'asymmetric Latest Cron state fails closed as incomplete observability' );
+
+$weekly_newer_cron_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-older' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-newer' ),
+	)
+);
+assert_same( true, $weekly_newer_cron_report['assessment']['cron_attempts_without_matching_summary'], 'newer Weekly Cron attempt without matching summary exposes a gap despite older Latest attempt' );
+
+$previous_cron_summary_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-newer' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-previous' ),
+		Snapshot_Store::OPTION_LAST_CRON_RUN   => $diagnostic_summary( 'cron', 'cron-previous' ),
+	)
+);
+assert_same( true, $previous_cron_summary_report['assessment']['cron_attempts_without_matching_summary'], 'previous Cron summary cannot hide one per-list attempt advancing to a newer run' );
+
+$advanced_cron_summary_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-current' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-stale' ),
+		Snapshot_Store::OPTION_LAST_CRON_RUN   => $diagnostic_summary( 'cron', 'cron-current' ),
+	)
+);
+assert_same( true, $advanced_cron_summary_report['assessment']['cron_attempts_without_matching_summary'], 'advanced Cron summary keeps a stale failed per-list attempt mechanically visible' );
+assert_same( true, $advanced_cron_summary_report['assessment']['observability_incomplete'], 'summary advancement with one stale attempt remains incomplete' );
+
+$latest_newer_manual_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'manual', 'manual-newer' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'manual', 'manual-older' ),
+	)
+);
+assert_same( true, $latest_newer_manual_report['assessment']['manual_attempts_without_matching_summary'], 'newer Latest Manual attempt without matching summary exposes a gap' );
+
+$weekly_newer_manual_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'manual', 'manual-older' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'manual', 'manual-newer' ),
+	)
+);
+assert_same( true, $weekly_newer_manual_report['assessment']['manual_attempts_without_matching_summary'], 'newer Weekly Manual attempt without matching summary exposes a gap' );
+
+$independent_trigger_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT  => $diagnostic_attempt( 'latest', 'cron', 'cron-current' ),
+		Snapshot_Store::OPTION_WEEKLY_ATTEMPT  => $diagnostic_attempt( 'weekly_popular', 'manual', 'manual-current' ),
+		Snapshot_Store::OPTION_LAST_CRON_RUN    => $diagnostic_summary( 'cron', 'cron-current' ),
+		Snapshot_Store::OPTION_LAST_MANUAL_RUN  => $diagnostic_summary( 'manual', 'manual-current' ),
+	)
+);
+assert_same( false, $independent_trigger_report['assessment']['cron_attempts_without_matching_summary'], 'Manual attempt does not create a false Cron correlation gap' );
+assert_same( false, $independent_trigger_report['assessment']['manual_attempts_without_matching_summary'], 'Cron attempt does not create a false Manual correlation gap' );
+assert_same( false, $independent_trigger_report['assessment']['observability_incomplete'], 'independently matching Manual and Cron state remains complete' );
+
+$missing_run_id_report = $build_correlation_report(
+	array(
+		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', null ),
+	)
+);
+assert_same( 'cron', $missing_run_id_report['lists']['latest']['latest_attempt']['trigger'], 'explicit Cron trigger remains visible when run id is missing' );
+assert_same( 'legacy_or_unknown', $missing_run_id_report['lists']['latest']['latest_attempt']['attribution'], 'missing run id does not fabricate explicit correlation attribution' );
+assert_same( true, $missing_run_id_report['assessment']['cron_attempts_without_matching_summary'], 'explicit Cron attempt without usable run id fails closed as an observability gap' );
+
 /* Page render and JSON export remain remote-free; download is protected by capability + nonce. */
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $before                    = $fetch_count;
