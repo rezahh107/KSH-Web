@@ -155,7 +155,7 @@ The implementation requires a **read-only Preview/Test Connection qualification 
 
 This qualified the observed runtime path from the real KSH host through WordPress HTTP acquisition, current Kanoon HTML, parser/validation, and normalized results at that execution.
 
-After merged PR #4, the Owner installed plugin v0.2.1 and downloaded the real-host diagnostic JSON. That artifact observed WordPress 7.1.2, PHP 8.3.33, `event_registered=true`, daily recurrence, `cron_execution_observed=true`, a Cron-origin `overall_status=success`, Latest local_count=20, Weekly local_count=16, and `observability_incomplete=false`. Therefore one real chain from WP-Cron through acquisition, validation, independent local persistence, and diagnostic persistence is proven for that observed execution.
+After merged PR #4, the Owner installed plugin v0.2.1 and downloaded the real-host diagnostic JSON. That artifact observed WordPress 7.1.2, PHP 8.3.33, `event_registered=true`, daily recurrence, `cron_execution_observed=true`, a Cron-origin `overall_status=success`, Latest local_count=20, Weekly Popular local_count=16, and `observability_incomplete=false`. Therefore one real chain from WP-Cron through acquisition, validation, independent local persistence, and diagnostic persistence is proven for that observed execution.
 
 The Owner subsequently installed v0.3.0, placed `[ksh_kanoon_articles]` on a real KSH page, and supplied desktop/mobile captures. Those captures showed both lists rendering, the intended two-column desktop composition, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. Public placement/rendering itself is therefore no longer wholly `NOT_PROVEN` for that observed execution. The same evidence exposed repeated public Latest date lines and equal-height Grid stretching; v0.3.1 removes those presentation artifacts while preserving the underlying stored metadata and local-only architecture.
 
@@ -265,7 +265,7 @@ As implementation evolves, extend this same canonical verification path with app
 - independent validated per-list snapshot storage using WordPress Options;
 - bounded per-list latest-attempt status with explicit origin/run identity for new attempts and legacy `unknown` compatibility;
 - explicit Manual and scheduled Cron entry paths that reuse the same canonical acquisition/validation/persistence implementation;
-- separate non-autoloaded latest Manual/Cron run summaries, without unbounded history;
+- separate non-autoloaded latest Manual and latest Cron run summaries, without unbounded history;
 - one native daily WP-Cron hook with upgrade-safe schedule existence repair;
 - one-click authenticated JSON diagnostic download containing only bounded plugin-owned/public metadata and safe WordPress/PHP runtime facts;
 - deterministic separation between schedule registration and persisted Cron execution evidence;
