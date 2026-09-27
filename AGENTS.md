@@ -73,6 +73,20 @@ Important boundaries:
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
+## Public homepage implementation
+
+The qualified presentation stack for the current homepage path is Hello Elementor + Elementor + Elementor Pro. The source-controlled page-body candidate lives at:
+
+`elementor/homepage/ksh-public-homepage-body-v1.json`
+
+It is deliberately body-only: preserve the existing global `Header01`, do not create a global footer, do not modify the Plato managers' portal, and do not change the live `page_on_front` assignment. The public homepage consumes `[ksh_kanoon_articles]` through a normal Elementor Shortcode widget rather than moving article data/business logic into Elementor.
+
+Homepage-specific deterministic validation lives at:
+
+`scripts/validate-elementor-homepage.php`
+
+and is executed by the existing canonical `bash scripts/verify-foundation.sh` path. Static/template checks do not prove real Elementor import or authentic responsive rendering; those remain `NOT_PROVEN` until executed on the KSH host.
+
 ## Design authority
 
 Use `docs/design/assets/homepage-responsive-reference.webp` together with `docs/design/UI_REFERENCE.md`.
@@ -87,7 +101,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It covers foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove final v0.3.1 real-page visual acceptance. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It covers foundation/design integrity, deterministic Elementor homepage-template contracts, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove final v0.3.1 real-page visual acceptance. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
