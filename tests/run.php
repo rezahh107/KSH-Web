@@ -620,6 +620,7 @@ assert_true( $report['lists']['latest']['current_snapshot']['count'] > 0, 'repor
 assert_true( ! empty( $report['lists']['latest']['current_snapshot']['items'] ), 'report includes bounded normalized Latest items' );
 assert_same( 'cron', $report['lists']['latest']['latest_attempt']['trigger'], 'report includes latest per-list explicit origin' );
 assert_same( $cron_run2['run_id'], $report['lists']['latest']['latest_attempt']['run_id'], 'report correlates latest per-list attempt with latest cron run' );
+assert_same( false, $report['assessment']['observability_incomplete'], 'matching latest attempts and run summary report complete observability' );
 assert_same( 'CRON_EXECUTION_OBSERVED', $report['assessment']['diagnostic_state'], 'observed cron summary produces factual observed state' );
 
 $json = wp_json_encode( $report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
@@ -666,6 +667,7 @@ assert_same( null, $scheduled_report['scheduler']['last_cron_run'], 'scheduled-o
 assert_same( 'SCHEDULED_NOT_YET_OBSERVED', $scheduled_report['assessment']['diagnostic_state'], 'scheduled-only state remains explicitly unobserved' );
 assert_same( 'unknown', $scheduled_report['lists']['latest']['latest_attempt']['trigger'], 'legacy attempt without trigger remains readable as unknown' );
 assert_same( 'legacy_or_unknown', $scheduled_report['lists']['latest']['latest_attempt']['attribution'], 'legacy attempt is truthfully attributed' );
+assert_same( false, $scheduled_report['assessment']['observability_incomplete'], 'legacy unattributed attempt does not fabricate an observability-write failure' );
 
 $missing_schedule = new Scheduler(
 	static function () { return false; },
@@ -696,6 +698,8 @@ $summary_fail_report = ( new Diagnostic_Report(
 	static function (): string { return '2026-09-27T10:14:00+00:00'; }
 ) )->build();
 assert_same( false, $summary_fail_report['scheduler']['cron_execution_observed'], 'failed run-summary persistence cannot become persistent cron proof' );
+assert_same( true, $summary_fail_report['assessment']['cron_attempts_without_matching_summary'], 'report explicitly surfaces persisted cron attempts lacking required run summary' );
+assert_same( true, $summary_fail_report['assessment']['observability_incomplete'], 'run-summary persistence failure is explicitly reported as incomplete observability' );
 assert_same( 'SCHEDULED_NOT_YET_OBSERVED', $summary_fail_report['assessment']['diagnostic_state'], 'run-summary write failure stays unobserved despite registered schedule' );
 
 /* Page render and JSON export remain remote-free; download is protected by capability + nonce. */
