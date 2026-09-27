@@ -12,12 +12,16 @@ namespace KSH\KanoonArticles;
  */
 final class Snapshot_Store {
 
-	const SCHEMA_VERSION = 1;
+	const SCHEMA_VERSION             = 1;
+	const ATTEMPT_SCHEMA_VERSION     = 2;
+	const RUN_SUMMARY_SCHEMA_VERSION = 1;
 
 	const OPTION_LATEST_SNAPSHOT = 'ksh_kanoon_articles_latest_snapshot';
 	const OPTION_WEEKLY_SNAPSHOT = 'ksh_kanoon_articles_weekly_snapshot';
 	const OPTION_LATEST_ATTEMPT  = 'ksh_kanoon_articles_latest_attempt';
 	const OPTION_WEEKLY_ATTEMPT  = 'ksh_kanoon_articles_weekly_attempt';
+	const OPTION_LAST_MANUAL_RUN = 'ksh_kanoon_articles_last_manual_run';
+	const OPTION_LAST_CRON_RUN   = 'ksh_kanoon_articles_last_cron_run';
 
 	/**
 	 * Option reader.
@@ -90,6 +94,24 @@ final class Snapshot_Store {
 	}
 
 	/**
+	 * Read the latest persisted summary for one explicit refresh origin.
+	 *
+	 * @param string $trigger Refresh origin.
+	 * @return array<string,mixed>|null
+	 */
+	public function get_run_summary( $trigger ) {
+		$option = $this->run_summary_option( $trigger );
+		if ( '' === $option ) {
+			return null;
+		}
+
+		$get   = $this->get_option;
+		$value = $get( $option, null );
+
+		return is_array( $value ) ? $value : null;
+	}
+
+	/**
 	 * Replace one list snapshot only from a successful validated candidate.
 	 *
 	 * @param string              $source     List identity.
@@ -115,17 +137,21 @@ final class Snapshot_Store {
 	 * @param mixed  $http_code        HTTP status code when available.
 	 * @param string $reason           Bounded reason code.
 	 * @param string $action           Persistence action taken.
+	 * @param string $trigger          Explicit refresh origin when known.
+	 * @param string $run_id           Bounded refresh run identity when known.
 	 * @return bool
 	 */
-	public function save_attempt( $source, $attempted_at, $candidate_status, $http_code, $reason, $action ) {
+	public function save_attempt( $source, $attempted_at, $candidate_status, $http_code, $reason, $action, $trigger = 'unknown', $run_id = '' ) {
 		$option = $this->attempt_option( $source );
 		if ( '' === $option ) {
 			return false;
 		}
 
 		$attempt = array(
-			'schema_version'   => self::SCHEMA_VERSION,
+			'schema_version'   => self::ATTEMPT_SCHEMA_VERSION,
 			'source'           => $source,
+			'trigger'          => $this->normalize_trigger( $trigger ),
+			'run_id'           => '' !== (string) $run_id ? (string) $run_id : null,
 			'attempted_at'     => (string) $attempted_at,
 			'candidate_status' => (string) $candidate_status,
 			'http_code'        => is_numeric( $http_code ) ? (int) $http_code : null,
@@ -134,6 +160,25 @@ final class Snapshot_Store {
 		);
 
 		return $this->write_option( $option, $attempt );
+	}
+
+	/**
+	 * Persist the latest bounded run summary independently for Manual and Cron.
+	 *
+	 * @param string              $trigger Explicit refresh origin.
+	 * @param array<string,mixed> $summary Bounded run summary.
+	 * @return bool
+	 */
+	public function save_run_summary( $trigger, $summary ) {
+		$option = $this->run_summary_option( $trigger );
+		if ( '' === $option || ! is_array( $summary ) ) {
+			return false;
+		}
+
+		$summary['schema_version'] = self::RUN_SUMMARY_SCHEMA_VERSION;
+		$summary['trigger']        = $this->normalize_trigger( $trigger );
+
+		return $this->write_option( $option, $summary );
 	}
 
 	/**
@@ -247,5 +292,33 @@ final class Snapshot_Store {
 		}
 
 		return '';
+	}
+
+	/**
+	 * Resolve run-summary option for one explicit refresh origin.
+	 *
+	 * @param string $trigger Refresh origin.
+	 * @return string
+	 */
+	private function run_summary_option( $trigger ) {
+		if ( 'manual' === $trigger ) {
+			return self::OPTION_LAST_MANUAL_RUN;
+		}
+
+		if ( 'cron' === $trigger ) {
+			return self::OPTION_LAST_CRON_RUN;
+		}
+
+		return '';
+	}
+
+	/**
+	 * Normalize refresh origin without inventing attribution.
+	 *
+	 * @param string $trigger Refresh origin.
+	 * @return string
+	 */
+	private function normalize_trigger( $trigger ) {
+		return in_array( $trigger, array( 'manual', 'cron' ), true ) ? $trigger : 'unknown';
 	}
 }
