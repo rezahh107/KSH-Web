@@ -73,19 +73,23 @@ Important boundaries:
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
-## Public homepage implementation
+## Public homepage direction
 
-The qualified presentation stack for the current homepage path is Hello Elementor + Elementor + Elementor Pro. The source-controlled page-body candidate lives at:
+The final public homepage/pages are Owner-built manually in Elementor on the qualified Hello Elementor + Elementor + Elementor Pro stack. Preserve the existing global `Header01`, do not modify the Plato managers' portal, and do not change the live `page_on_front` assignment unless the Owner explicitly authorizes that runtime action.
+
+The merged PR #7 artifact remains at:
 
 `elementor/homepage/ksh-public-homepage-body-v1.json`
 
-It is deliberately body-only: preserve the existing global `Header01`, do not create a global footer, do not modify the Plato managers' portal, and do not change the live `page_on_front` assignment. The public homepage consumes `[ksh_kanoon_articles]` through a normal Elementor Shortcode widget rather than moving article data/business logic into Elementor.
-
-Homepage-specific deterministic validation lives at:
+It is **historical/technical qualification evidence only**, not the selected final homepage implementation method. Do not instruct future work to import or deploy that JSON as the final homepage. Its deterministic validator remains in the repository only to preserve the historical artifact's contract:
 
 `scripts/validate-elementor-homepage.php`
 
-and is executed by the existing canonical `bash scripts/verify-foundation.sh` path. Static/template checks do not prove real Elementor import or authentic responsive rendering; those remain `NOT_PROVEN` until executed on the KSH host.
+The current proposed page/destination structure, naming, URL, navigation, and indexing reference is:
+
+`docs/SITE_INFORMATION_ARCHITECTURE.md`
+
+That IA document remains **PROPOSED — OWNER REVIEW REQUIRED** except for decisions explicitly marked Owner-locked, including `/reg/`.
 
 ## Design authority
 
@@ -101,7 +105,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It covers foundation/design integrity, deterministic Elementor homepage-template contracts, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove final v0.3.1 real-page visual acceptance. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It covers foundation/design integrity, deterministic validation of the retained historical Elementor homepage artifact, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove final manually built page behavior. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
