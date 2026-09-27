@@ -2,7 +2,7 @@
 
 Official WordPress website project for **Kanoon Farhangi Amoozeshi Shiraz (کانون فرهنگی آموزشی شیراز)**.
 
-The repository contains the site-specific **KSH Kanoon Articles** plugin. Its current backend capability covers qualified read-only acquisition, independent local last-known-good snapshots, explicitly attributed Manual/Cron refresh execution, one approximately-daily WordPress-native refresh schedule, and a one-click read-only JSON diagnostic export. The public/frontend article module is still intentionally not implemented.
+The repository contains the site-specific **KSH Kanoon Articles** plugin. It covers qualified acquisition, independent local last-known-good snapshots, explicitly attributed Manual/Cron refresh execution, one approximately-daily WordPress-native refresh schedule, a one-click read-only JSON diagnostic export, and a public local-only article renderer exposed through a standard WordPress shortcode.
 
 ## Start here
 
@@ -20,7 +20,7 @@ Plugin source:
 wp-content/plugins/ksh-kanoon-articles/
 ```
 
-Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.2.1**.
+Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.3.0**.
 
 The wp-admin surface remains under **Tools → آزمون اتصال مقاله‌های کانون** and now exposes three bounded actions:
 
@@ -34,17 +34,37 @@ The plugin uses WordPress Options for the small local state and one native daily
 
 Schedule registration and actual Cron execution are intentionally separate facts. `wp_next_scheduled()` proves only that the owned event is registered. `cron_execution_observed=true` appears in the diagnostic JSON only when a persisted `cron` run summary exists from the scheduled callback path.
 
-It does **not** create Posts/CPTs, persist raw remote HTML, mirror article bodies/media, add a shortcode/block/widget, or render the public homepage module.
+It does **not** create Posts/CPTs, persist raw remote HTML, mirror article bodies/media, add a Gutenberg block/Elementor widget, or contact `kanoon.ir` while rendering public pages.
+
+Public placement seam:
+
+```text
+[ksh_kanoon_articles]
+```
+
+The shortcode delegates to a reusable renderer that reads `Snapshot_Store::get_snapshot()` only. It renders the canonical `تازه‌های کانون` section with `تازه‌ها` and `پربازدید هفته`, preserves stored ordering, renders every available validated item, shows non-empty Latest `date_context`, escapes all output, and fails softly when one or both lists are unavailable. Presentation is Persian RTL, responsive, scoped below `.ksh-kanoon-articles`, and uses no frontend JavaScript.
 
 ## Real-host qualification evidence
 
-The Owner executed the merged v0.1.0 read-only Preview on the real KSH WordPress host before this persistence stage was authorized. Observed result:
+Two distinct real-host gates have now been observed.
 
-- Latest: PASS, 20 valid records, HTTP 200, source `https://www.kanoon.ir/Article/Days`;
-- Weekly Popular: PASS, 16 valid records, HTTP 200, source `https://www.kanoon.ir/`;
+The Owner first executed the merged v0.1.0 read-only Preview on the real KSH WordPress host:
+
+- Latest: PASS, 20 valid records, HTTP 200;
+- Weekly Popular: PASS, 16 valid records, HTTP 200;
 - WordPress version visibly observed: 7.1.2.
 
-That execution qualified the observed path from the real KSH host through the WordPress HTTP API, current Kanoon HTML, parser, validation, and normalized results. It does **not** prove future DOM/network stability, persistence correctness, future WP-Cron execution, frontend behavior, or the exact production PHP version.
+After merged PR #4, the Owner installed v0.2.1 and downloaded the plugin diagnostic JSON. That artifact observed:
+
+- WordPress 7.1.2 and PHP 8.3.33;
+- `event_registered=true`, recurrence `daily`;
+- `cron_execution_observed=true`;
+- one Cron-origin run with `overall_status=success`;
+- Latest candidate/local count 20;
+- Weekly Popular candidate/local count 16;
+- `observability_incomplete=false` and diagnostic state `CRON_EXECUTION_OBSERVED`.
+
+This proves the observed chain `WP-Cron → acquisition → parser/validation → independent local persistence → diagnostic persistence` for that execution. It does **not** guarantee future Cron firing, future Kanoon DOM/network stability, or real-host visual correctness of the new v0.3.0 frontend.
 
 ## Development verification
 
@@ -60,7 +80,7 @@ Canonical verification:
 bash scripts/verify-foundation.sh
 ```
 
-The command runs repository/design integrity checks, PHP syntax validation, WordPress Coding Standards, and deterministic parser/orchestration/persistence/lifecycle tests. Development dependencies are Composer `require-dev` packages only; the production plugin has no Composer runtime dependency.
+The command runs repository/design integrity checks, PHP syntax validation, WordPress Coding Standards, and deterministic parser/orchestration/persistence/lifecycle/diagnostic/frontend tests. Development dependencies are Composer `require-dev` packages only; the production plugin has no Composer runtime dependency.
 
 Useful focused commands after `composer install`:
 
@@ -69,15 +89,13 @@ composer cs
 composer test
 ```
 
-Repository tests use bounded stubs for Options/WP-Cron lifecycle boundaries. They cover Manual/Cron attribution, run correlation, separate latest Manual/Cron summaries, legacy-attempt compatibility, schedule-vs-execution semantics, read-only JSON generation/download, privacy exclusions, and the existing parser/LKG/lifecycle behavior. They prove only the exercised deterministic behavior; they do not prove that the real site's future cron runner will fire or that future Kanoon HTML remains compatible.
+Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. They cover Manual/Cron attribution, run correlation, separate latest Manual/Cron summaries, legacy-attempt compatibility, schedule-vs-execution semantics, read-only JSON generation/download, privacy exclusions, local-only frontend rendering/fail-soft behavior, output escaping, ordering/no-truncation, shortcode registration, and scoped responsive CSS contracts. They prove only the exercised deterministic behavior; they do not guarantee future Cron firing, future Kanoon HTML compatibility, or authentic browser visual fidelity.
 
 ## Operational qualification workflow
 
-Normal support/qualification is now intended to be one-click after installation: install/update the plugin, allow normal site operation / WP-Cron opportunity, open the existing Tools page, click **دانلود گزارش JSON**, and provide that single file to the Project Manager / LLM. No Options inspection, Cron-inspector plugin, timestamp copy/paste, or screenshot bundle should be necessary.
+The v0.2.1 diagnostic has already established one successful real Cron-origin execution. The JSON download remains the preferred bounded support artifact because it is read-only and does not contact `kanoon.ir`.
 
-The JSON contains plugin version, safe WordPress/PHP runtime facts, schedule registration/next-run data, separate persisted Manual/Cron summaries, current validated snapshot projections with normalized public items, and latest per-list attempt evidence. Generating/downloading it is read-only and does not contact `kanoon.ir`.
-
-The next real-host evidence gate is the downloaded report itself. A registered daily event with no persisted Cron-origin run must remain `SCHEDULED_NOT_YET_OBSERVED`; actual KSH Cron execution becomes proven only when the real-host report contains persisted `trigger=cron` execution evidence. Repository tests cannot establish that runtime fact.
+After this frontend change is merged and v0.3.0 is installed, the safest real-host validation is to place `[ksh_kanoon_articles]` through the site's ordinary WordPress/page-builder Shortcode surface, verify both local lists render without triggering acquisition, inspect desktop/mobile presentation, and re-download the diagnostic JSON to confirm scheduler/snapshot state remains intact.
 
 ## Product direction
 
@@ -85,7 +103,7 @@ The next real-host evidence gate is the downloaded report itself. A registered d
 - Public homepage and contact/about/service paths.
 - Staff/manager-facing access to relevant forms and services.
 - Direct student-registration entry path where required.
-- A future locally rendered `تازه‌ها / پربازدید هفته` module reading only validated local snapshots.
+- A locally rendered `تازه‌ها / پربازدید هفته` module reading only validated local snapshots through `[ksh_kanoon_articles]`.
 - No full remote-article mirroring.
 
 ## License
