@@ -330,7 +330,10 @@ final class Diagnostic_Report {
 	}
 
 	/**
-	 * Detect a newer explicitly-attributed pair of list attempts with no matching persisted run summary.
+	 * Detect explicitly-attributed list attempts without a matching persisted run summary.
+	 *
+	 * Each per-list attempt slot is persisted independently, so correlation must be evaluated
+	 * independently as well. Legacy/unattributed attempts remain outside this check.
 	 *
 	 * @param array<string,mixed>|null $latest_attempt Latest list attempt projection.
 	 * @param array<string,mixed>|null $weekly_attempt Weekly list attempt projection.
@@ -339,22 +342,23 @@ final class Diagnostic_Report {
 	 * @return bool
 	 */
 	private function attempts_without_matching_summary( $latest_attempt, $weekly_attempt, $trigger, $summary ) {
-		if (
-			! is_array( $latest_attempt ) ||
-			! is_array( $weekly_attempt ) ||
-			( isset( $latest_attempt['trigger'] ) ? $latest_attempt['trigger'] : '' ) !== $trigger ||
-			( isset( $weekly_attempt['trigger'] ) ? $weekly_attempt['trigger'] : '' ) !== $trigger ||
-			empty( $latest_attempt['run_id'] ) ||
-			$latest_attempt['run_id'] !== $weekly_attempt['run_id']
-		) {
-			return false;
+		$summary_run_id = is_array( $summary ) && ! empty( $summary['run_id'] ) ? (string) $summary['run_id'] : null;
+
+		foreach ( array( $latest_attempt, $weekly_attempt ) as $attempt ) {
+			if (
+				! is_array( $attempt ) ||
+				( isset( $attempt['trigger'] ) ? $attempt['trigger'] : '' ) !== $trigger
+			) {
+				continue;
+			}
+
+			$attempt_run_id = ! empty( $attempt['run_id'] ) ? (string) $attempt['run_id'] : null;
+			if ( null === $attempt_run_id || $attempt_run_id !== $summary_run_id ) {
+				return true;
+			}
 		}
 
-		if ( ! is_array( $summary ) ) {
-			return true;
-		}
-
-		return ( isset( $summary['run_id'] ) ? $summary['run_id'] : null ) !== $latest_attempt['run_id'];
+		return false;
 	}
 
 	/**
