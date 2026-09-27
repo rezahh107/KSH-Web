@@ -361,6 +361,7 @@ assert_same(
 	'snapshot persists only bounded normalized metadata'
 );
 assert_same( array( 'title', 'url', 'date_context' ), array_keys( $initial_latest['items'][0] ), 'persisted items omit request/raw diagnostic data' );
+assert_same( 'شنبه 4 مهر 1405', $initial_latest['items'][0]['date_context'], 'snapshot storage preserves Latest date_context metadata' );
 assert_same(
 	array( 'https://www.kanoon.ir/Article/474577', 'https://www.kanoon.ir/Article/474578' ),
 	array_column( $initial_latest['items'], 'url' ),
@@ -903,12 +904,13 @@ $GLOBALS['ksh_test_current_user_can'] = true;
 
 
 /* Public frontend renderer reads validated local snapshots only and fails softly. */
+$public_date_marker    = 'KSH-DATE-CONTEXT-PRIVATE-1405-07-04';
 $frontend_latest_items = array();
 for ( $i = 1; $i <= 21; ++$i ) {
 	$frontend_latest_items[] = array(
 		'title'        => 2 === $i ? '<script>alert("x")</script>' : 'تازه ' . $i,
 		'url'          => 'https://www.kanoon.ir/Article/' . ( 970000 + $i ),
-		'date_context' => 3 === $i ? '' : 'شنبه 4 مهر 1405',
+		'date_context' => 1 === $i ? $public_date_marker : ( 3 === $i ? '' : 'شنبه 4 مهر 1405' ),
 	);
 }
 
@@ -979,7 +981,17 @@ preg_match_all( '/<a class="ksh-kanoon-articles__link" href="([^"]+)">/', $front
 assert_same( $expected_link_urls, $rendered_links[1], 'frontend preserves both stored list orders and renders every available item without truncation' );
 assert_true( false !== strpos( $frontend_html, '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' ), 'frontend escapes article titles at output' );
 assert_same( false, false !== strpos( $frontend_html, '<script>alert("x")</script>' ), 'frontend never emits raw article-title HTML' );
-assert_same( 20, substr_count( $frontend_html, 'class="ksh-kanoon-articles__meta"' ), 'Latest renders non-empty date_context only and omits empty metadata markup' );
+assert_same( false, false !== strpos( $frontend_html, $public_date_marker ), 'frontend does not expose stored Latest date_context' );
+assert_same( false, false !== strpos( $frontend_html, 'ksh-kanoon-articles__meta' ), 'frontend emits no obsolete date metadata markup' );
+assert_same( $public_date_marker, $frontend_values[ Snapshot_Store::OPTION_LATEST_SNAPSHOT ]['items'][0]['date_context'], 'frontend presentation change preserves stored date_context' );
+
+$frontend_diagnostic = new Diagnostic_Report(
+	$frontend_store,
+	$diagnostic_scheduler,
+	static function (): string { return '2026-09-27T11:00:00+00:00'; }
+);
+$frontend_report_json = wp_json_encode( $frontend_diagnostic->build(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+assert_true( false !== strpos( $frontend_report_json, $public_date_marker ), 'diagnostic report still exposes stored date_context metadata' );
 
 $weekly_only_values = array(
 	Snapshot_Store::OPTION_WEEKLY_SNAPSHOT => $frontend_values[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ],
@@ -1049,9 +1061,12 @@ assert_true( false !== strpos( $frontend_source, 'get_snapshot' ), 'frontend ren
 
 $frontend_css = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/assets/css/frontend.css' );
 assert_true( is_string( $frontend_css ) && '' !== $frontend_css, 'frontend CSS exists' );
+assert_true( false !== strpos( $frontend_css, 'align-items: start;' ), 'desktop grid explicitly prevents equal-height panel stretching' );
 assert_true( false !== strpos( $frontend_css, '@media (max-width: 48rem)' ), 'frontend CSS declares a bounded mobile breakpoint' );
 assert_true( false !== strpos( $frontend_css, 'grid-template-columns: 1fr;' ), 'frontend CSS stacks list panels on narrow screens' );
 assert_true( false !== strpos( $frontend_css, ':focus-visible' ), 'frontend CSS provides visible keyboard focus styling' );
+assert_same( false, false !== strpos( $frontend_css, 'ksh-kanoon-articles__meta' ), 'obsolete public date metadata styling is removed' );
+assert_same( 0, preg_match( '/^\s*(?:width|min-width|max-width)\s*:/m', $frontend_css ), 'frontend CSS introduces no fixed physical width declarations' );
 foreach ( preg_split( '/\R/', $frontend_css ) as $css_line ) {
 	$css_line = trim( $css_line );
 	if ( '' === $css_line || '{' !== substr( $css_line, -1 ) || 0 === strpos( $css_line, '@' ) ) {
