@@ -328,3 +328,30 @@ This project intentionally does not add without demonstrated need or Owner decis
 - Git LFS for the current small reference asset;
 - speculative dependency/security automation;
 - unrelated infrastructure for the article integration.
+
+---
+
+## 14. Qualified Elementor public-homepage path
+
+Fresh Owner-qualified presentation evidence establishes the current target stack for public homepage composition as:
+
+- WordPress 7.1.2 / PHP 8.3.33;
+- Hello Elementor 3.5.1;
+- Elementor 4.3.2;
+- Elementor Pro 4.3.0;
+- Persian site language `fa_IR`;
+- existing global Theme Builder header `Header01` (template ID 341, general header condition);
+- existing current front page is the Plato managers' portal (page ID 62, slug `plato-user-panel`, template `tpl-user-panel.php`).
+
+The Owner decision now explicitly separates the future public homepage from the managers' portal. The Plato page remains independently reachable and must not be recreated, renamed, deleted, or absorbed into the public page.
+
+The selected source-controlled public-homepage implementation path is a **bounded Elementor page-body template**, not a custom theme, child theme, whole-site kit, or database-only manual composition. The versioned candidate lives at:
+
+`elementor/homepage/ksh-public-homepage-body-v1.json`
+
+The v1 candidate intentionally implements only the authority-supported subset: public identity hero, confirmed manager portal access, and the accepted `[ksh_kanoon_articles]` placement. About/Contact copy, additional service/student destinations, instructional sections, final CTA/footer enrichment, and final hero media remain deferred until authoritative content exists.
+
+The artifact must preserve global Theme Builder chrome and therefore must be applied to a new draft page using a layout that retains Header01; Elementor Canvas is not the selected deployment path when it removes the global header. The live `page_on_front` assignment remains an Owner acceptance action after real-host validation, not a repository change.
+
+Repository checks can qualify JSON structure, boundary constraints, shortcode cardinality, responsive metadata, and other deterministic template contracts. They do not prove successful import into Elementor 4.3.2 or authentic browser rendering at the target widths. Those exact real-host claims remain `NOT_PROVEN` until import and visual validation are executed.
+
