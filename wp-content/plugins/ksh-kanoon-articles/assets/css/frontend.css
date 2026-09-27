@@ -4,7 +4,6 @@
 	--ksh-kanoon-accent: #b56a00;
 	--ksh-kanoon-surface: #f7f8fb;
 	--ksh-kanoon-border: #dfe4ea;
-	--ksh-kanoon-muted: #596575;
 	box-sizing: border-box;
 	inline-size: 100%;
 	margin-block: clamp(2rem, 5vw, 4rem);
@@ -36,6 +35,7 @@
 .ksh-kanoon-articles .ksh-kanoon-articles__grid {
 	display: grid;
 	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: start;
 	gap: clamp(0.875rem, 2vw, 1.25rem);
 }
 
@@ -99,14 +99,6 @@
 	border-radius: 0.2rem;
 	outline: 0.2rem solid var(--ksh-kanoon-accent);
 	outline-offset: 0.2rem;
-}
-
-.ksh-kanoon-articles .ksh-kanoon-articles__meta {
-	display: block;
-	margin-block-start: 0.25rem;
-	color: var(--ksh-kanoon-muted);
-	font-size: 0.875rem;
-	line-height: 1.6;
 }
 
 @media (max-width: 48rem) {

@@ -36,6 +36,7 @@ Do not let generated mockup copy, placeholder text, or visual artifacts override
 - Failed refreshes must preserve the previous last-known-good snapshot.
 - The selected article acquisition family is a small site-specific WordPress extractor using WordPress Core HTTP APIs and local snapshot storage.
 - The real-host read-only Preview/qualification gate must precede writes/scheduling; that gate has now passed for the observed Owner execution.
+- Stored `date_context` remains backend/diagnostic metadata and is not part of the current public article-item presentation.
 
 See `docs/decisions/ADR-001-kanoon-article-list-mirror.md` for the complete contract.
 
@@ -56,7 +57,8 @@ Current plugin capability includes:
 - one daily native WP-Cron hook with cheap upgrade-safe schedule self-healing;
 - one-click authenticated **دانلود گزارش JSON** support bundle from the existing Tools page;
 - deactivation unscheduling without snapshot deletion;
-- a public local-only renderer plus the builder/theme-agnostic `[ksh_kanoon_articles]` shortcode, with scoped responsive RTL presentation.
+- a public local-only renderer plus the builder/theme-agnostic `[ksh_kanoon_articles]` shortcode, with scoped responsive RTL presentation;
+- Owner-observed real-host v0.3.0 shortcode rendering on desktop/mobile; v0.3.1 removes public per-item date metadata and default Grid equal-height stretching while preserving stored metadata and all article items.
 
 Important boundaries:
 
@@ -66,7 +68,8 @@ Important boundaries:
 - actual Cron execution is considered observed only from persisted `cron`-origin run evidence written by the scheduled callback path;
 - Latest and Weekly Popular remain independently validatable and replaceable;
 - repository/stub tests prove exercised renderer, attribution, persistence, scheduling, and export logic but do not guarantee future WP-Cron firing on the KSH host;
-- the observed real-host Preview and Cron run qualify those exact observed runtime executions, while future DOM/network stability and the v0.3.0 frontend on the real KSH page remain separate evidence boundaries.
+- the observed real-host Preview and Cron run qualify those exact runtime executions;
+- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution, while final visual acceptance of the v0.3.1 refinement and future source/runtime behavior remain separate evidence boundaries.
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
@@ -84,7 +87,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It covers foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove real-page visual integration. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It covers foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove final v0.3.1 real-page visual acceptance. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
