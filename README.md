@@ -2,7 +2,7 @@
 
 Official WordPress website project for **Kanoon Farhangi Amoozeshi Shiraz (کانون فرهنگی آموزشی شیراز)**.
 
-The repository contains the site-specific **KSH Kanoon Articles** plugin. Its current backend capability covers qualified read-only acquisition plus independent local last-known-good snapshots, manual refresh, and one approximately-daily WordPress-native refresh schedule. The public/frontend article module is still intentionally not implemented.
+The repository contains the site-specific **KSH Kanoon Articles** plugin. Its current backend capability covers qualified read-only acquisition, independent local last-known-good snapshots, explicitly attributed Manual/Cron refresh execution, one approximately-daily WordPress-native refresh schedule, and a one-click read-only JSON diagnostic export. The public/frontend article module is still intentionally not implemented.
 
 ## Start here
 
@@ -20,16 +20,19 @@ Plugin source:
 wp-content/plugins/ksh-kanoon-articles/
 ```
 
-Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.2.0**.
+Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.2.1**.
 
-The wp-admin surface remains under **Tools → آزمون اتصال مقاله‌های کانون** and now separates two explicit actions:
+The wp-admin surface remains under **Tools → آزمون اتصال مقاله‌های کانون** and now exposes three bounded actions:
 
 - **Preview/Test Connection** — remote read + parse/validation only; it never mutates local snapshots.
-- **Refresh Local Data Now** — remote acquisition through the same qualified candidate producer; only successful validated candidates replace the corresponding local list snapshot.
+- **Refresh Local Data Now** — remote acquisition through the same qualified candidate producer; only successful validated candidates replace the corresponding local list snapshot and the run is explicitly attributed as `manual`.
+- **دانلود گزارش JSON** — authenticated read-only download of current plugin/runtime evidence; it performs no remote acquisition, Refresh, option write, or Cron schedule mutation.
 
-Latest and Weekly Popular snapshots are independent. A failed, empty, malformed, or ambiguous candidate cannot erase a previous valid snapshot for that list. Per-list last-attempt metadata is stored separately from last-known-good data.
+Latest and Weekly Popular snapshots are independent. A failed, empty, malformed, or ambiguous candidate cannot erase a previous valid snapshot for that list. Per-list last-attempt metadata is stored separately from last-known-good data and now carries explicit `manual` / `cron` origin plus a bounded run identifier for new executions; legacy unattributed attempts remain readable as `unknown`.
 
-The plugin uses WordPress Options for the small local state and one native daily WP-Cron hook. A cheap `init` schedule-existence check self-heals the schedule after an in-place plugin upgrade; this check never performs remote acquisition. Deactivation unschedules the hook but deliberately preserves valid snapshots.
+The plugin uses WordPress Options for the small local state and one native daily WP-Cron hook. It preserves only the latest bounded Manual run summary and latest bounded Cron run summary as separate non-autoloaded options; there is no unbounded activity history. A cheap `init` schedule-existence check self-heals the schedule after an in-place plugin upgrade; this check never performs remote acquisition. Deactivation unschedules the hook but deliberately preserves valid snapshots and diagnostic evidence.
+
+Schedule registration and actual Cron execution are intentionally separate facts. `wp_next_scheduled()` proves only that the owned event is registered. `cron_execution_observed=true` appears in the diagnostic JSON only when a persisted `cron` run summary exists from the scheduled callback path.
 
 It does **not** create Posts/CPTs, persist raw remote HTML, mirror article bodies/media, add a shortcode/block/widget, or render the public homepage module.
 
@@ -66,13 +69,15 @@ composer cs
 composer test
 ```
 
-Repository tests use bounded stubs for Options/WP-Cron lifecycle boundaries. They prove only the exercised deterministic behavior; they do not prove that the real site's future cron runner will fire or that future Kanoon HTML remains compatible.
+Repository tests use bounded stubs for Options/WP-Cron lifecycle boundaries. They cover Manual/Cron attribution, run correlation, separate latest Manual/Cron summaries, legacy-attempt compatibility, schedule-vs-execution semantics, read-only JSON generation/download, privacy exclusions, and the existing parser/LKG/lifecycle behavior. They prove only the exercised deterministic behavior; they do not prove that the real site's future cron runner will fire or that future Kanoon HTML remains compatible.
 
-## Next runtime gate
+## Operational qualification workflow
 
-After this persistence/scheduling change is merged and installed, validate on the real KSH host that plugin upgrade succeeds, Preview still passes, manual refresh creates both snapshots, counts/timestamps/status are shown, a next WP-Cron event is registered, and ordinary page loads do not trigger remote acquisition. Actual future cron execution remains separately unproven until observed.
+Normal support/qualification is now intended to be one-click after installation: install/update the plugin, allow normal site operation / WP-Cron opportunity, open the existing Tools page, click **دانلود گزارش JSON**, and provide that single file to the Project Manager / LLM. No Options inspection, Cron-inspector plugin, timestamp copy/paste, or screenshot bundle should be necessary.
 
-Do not proceed to frontend implementation until that real-host persistence/manual-refresh/schedule-registration validation is complete.
+The JSON contains plugin version, safe WordPress/PHP runtime facts, schedule registration/next-run data, separate persisted Manual/Cron summaries, current validated snapshot projections with normalized public items, and latest per-list attempt evidence. Generating/downloading it is read-only and does not contact `kanoon.ir`.
+
+The next real-host evidence gate is the downloaded report itself. A registered daily event with no persisted Cron-origin run must remain `SCHEDULED_NOT_YET_OBSERVED`; actual KSH Cron execution becomes proven only when the real-host report contains persisted `trigger=cron` execution evidence. Repository tests cannot establish that runtime fact.
 
 ## Product direction
 
