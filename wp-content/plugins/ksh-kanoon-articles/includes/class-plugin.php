@@ -12,22 +12,26 @@ namespace KSH\KanoonArticles;
  */
 final class Plugin {
 
+	const VERSION = '0.2.1';
+
 	/**
 	 * Bootstrap plugin hooks.
 	 *
 	 * @return void
 	 */
 	public static function boot() {
-		$fetcher   = new Remote_Fetcher();
-		$parser    = new Article_Parser();
-		$preview   = new Preview_Service( array( $fetcher, 'fetch' ), $parser );
-		$store     = new Snapshot_Store();
-		$refresh   = new Refresh_Service( $preview, $store );
-		$scheduler = new Scheduler();
-		$admin     = new Admin_Page( $preview, $refresh, $store, $scheduler );
+		$fetcher    = new Remote_Fetcher();
+		$parser     = new Article_Parser();
+		$preview    = new Preview_Service( array( $fetcher, 'fetch' ), $parser );
+		$store      = new Snapshot_Store();
+		$refresh    = new Refresh_Service( $preview, $store );
+		$scheduler  = new Scheduler();
+		$diagnostic = new Diagnostic_Report( $store, $scheduler );
+		$admin      = new Admin_Page( $preview, $refresh, $store, $scheduler, $diagnostic );
 
 		$scheduler->register( $refresh );
 		add_action( 'admin_menu', array( $admin, 'register' ) );
+		add_action( 'admin_post_' . Admin_Page::EXPORT_ACTION, array( $admin, 'download_diagnostic' ) );
 	}
 
 	/**

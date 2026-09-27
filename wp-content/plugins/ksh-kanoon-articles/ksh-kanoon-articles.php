@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KSH Kanoon Articles
  * Description: Qualified Kanoon article metadata acquisition with independent local last-known-good refresh.
- * Version: 0.2.0
+ * Version: 0.2.1
  * Text Domain: ksh-kanoon-articles
  *
  * @package KSH_Kanoon_Articles
@@ -21,6 +21,7 @@ require_once __DIR__ . '/includes/class-preview-service.php';
 require_once __DIR__ . '/includes/class-snapshot-store.php';
 require_once __DIR__ . '/includes/class-refresh-service.php';
 require_once __DIR__ . '/includes/class-scheduler.php';
+require_once __DIR__ . '/includes/class-diagnostic-report.php';
 require_once __DIR__ . '/includes/class-admin-page.php';
 require_once __DIR__ . '/includes/class-plugin.php';
 

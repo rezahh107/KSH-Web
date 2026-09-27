@@ -16,6 +16,8 @@ final class Admin_Page {
 	const MENU_SLUG     = 'ksh-kanoon-articles-preview';
 	const NONCE         = 'ksh_kanoon_articles_preview';
 	const REFRESH_NONCE = 'ksh_kanoon_articles_refresh';
+	const EXPORT_NONCE  = 'ksh_kanoon_articles_diagnostic_export';
+	const EXPORT_ACTION = 'ksh_kanoon_articles_download_diagnostic';
 
 	/**
 	 * Read-only Preview service.
@@ -46,18 +48,36 @@ final class Admin_Page {
 	private $scheduler;
 
 	/**
+	 * Read-only diagnostic report builder.
+	 *
+	 * @var Diagnostic_Report
+	 */
+	private $diagnostic;
+
+	/**
+	 * Optional test-only download terminator.
+	 *
+	 * @var callable|null
+	 */
+	private $download_terminator;
+
+	/**
 	 * Create the native admin controller.
 	 *
-	 * @param Preview_Service $preview   Read-only Preview service.
-	 * @param Refresh_Service $refresh   Canonical local refresh service.
-	 * @param Snapshot_Store  $store     Local snapshot/status store.
-	 * @param Scheduler       $scheduler Native schedule owner.
+	 * @param Preview_Service        $preview             Read-only Preview service.
+	 * @param Refresh_Service        $refresh             Canonical local refresh service.
+	 * @param Snapshot_Store         $store               Local snapshot/status store.
+	 * @param Scheduler              $scheduler           Native schedule owner.
+	 * @param Diagnostic_Report|null $diagnostic          Read-only report builder.
+	 * @param callable|null          $download_terminator Optional test-only terminator.
 	 */
-	public function __construct( Preview_Service $preview, Refresh_Service $refresh, Snapshot_Store $store, Scheduler $scheduler ) {
-		$this->preview   = $preview;
-		$this->refresh   = $refresh;
-		$this->store     = $store;
-		$this->scheduler = $scheduler;
+	public function __construct( Preview_Service $preview, Refresh_Service $refresh, Snapshot_Store $store, Scheduler $scheduler, Diagnostic_Report $diagnostic = null, $download_terminator = null ) {
+		$this->preview             = $preview;
+		$this->refresh             = $refresh;
+		$this->store               = $store;
+		$this->scheduler           = $scheduler;
+		$this->diagnostic          = $diagnostic ? $diagnostic : new Diagnostic_Report( $store, $scheduler );
+		$this->download_terminator = $download_terminator;
 	}
 
 	/**
@@ -83,7 +103,67 @@ final class Admin_Page {
 	 * @return array<string,mixed>
 	 */
 	public function run_manual_refresh() {
-		return $this->refresh->run();
+		return $this->refresh->run( 'manual' );
+	}
+
+	/**
+	 * Build one direct-download payload from current local diagnostic state only.
+	 *
+	 * @return array<string,string>
+	 */
+	public function prepare_diagnostic_download() {
+		$report = $this->diagnostic->build();
+		$json   = wp_json_encode(
+			$report,
+			JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+		);
+
+		if ( false === $json ) {
+			wp_die( esc_html__( 'ساخت گزارش JSON ناموفق بود.', 'ksh-kanoon-articles' ) );
+		}
+
+		$generated_at = isset( $report['report']['generated_at_utc'] ) ? (string) $report['report']['generated_at_utc'] : '';
+		$digits       = preg_replace( '/[^0-9]/', '', $generated_at );
+		$stamp        = strlen( (string) $digits ) >= 14
+			? substr( (string) $digits, 0, 8 ) . 'T' . substr( (string) $digits, 8, 6 ) . 'Z'
+			: gmdate( 'Ymd\\THis\\Z' );
+
+		return array(
+			'filename' => 'ksh-kanoon-articles-diagnostic-' . $stamp . '.json',
+			'json'     => $json . "\n",
+		);
+	}
+
+	/**
+	 * Authenticated admin-post handler for a direct JSON diagnostic download.
+	 *
+	 * The report builder is read-only: this path does not Preview, Refresh,
+	 * schedule/unschedule Cron, or write plugin options.
+	 *
+	 * @return void
+	 */
+	public function download_diagnostic() {
+		if ( ! current_user_can( self::CAPABILITY ) ) {
+			wp_die( esc_html__( 'شما اجازه دانلود این گزارش را ندارید.', 'ksh-kanoon-articles' ) );
+		}
+
+		check_admin_referer( self::EXPORT_NONCE );
+
+		$download = $this->prepare_diagnostic_download();
+
+		nocache_headers();
+		header( 'Content-Type: application/json; charset=UTF-8' );
+		header( 'Content-Disposition: attachment; filename="' . $download['filename'] . '"' );
+		header( 'X-Content-Type-Options: nosniff' );
+
+		echo $download['json']; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- JSON attachment, encoded by wp_json_encode().
+
+		if ( is_callable( $this->download_terminator ) ) {
+			call_user_func( $this->download_terminator );
+			return;
+		}
+
+		exit;
 	}
 
 	/**
@@ -149,6 +229,16 @@ final class Admin_Page {
 				<input type="hidden" name="ksh_action" value="refresh">
 				<?php wp_nonce_field( self::REFRESH_NONCE ); ?>
 				<?php submit_button( __( 'Refresh دادهٔ محلی اکنون', 'ksh-kanoon-articles' ), 'primary', 'submit', false ); ?>
+			</form>
+
+			<hr>
+			<h2><?php echo esc_html__( 'گزارش تشخیصی', 'ksh-kanoon-articles' ); ?></h2>
+			<p><?php echo esc_html__( 'این فایل JSON فقط وضعیت محلی فعلی، Snapshotها، آخرین اجرای Manual/Cron ثبت‌شده و وضعیت زمان‌بندی را می‌خواند تا مشخص شود اجرای واقعی Cron مشاهده شده است یا فقط زمان‌بندی وجود دارد.', 'ksh-kanoon-articles' ); ?></p>
+			<p><?php echo esc_html__( 'دانلود گزارش با kanoon.ir تماس نمی‌گیرد، Preview یا Refresh اجرا نمی‌کند، Snapshot و attempt را تغییر نمی‌دهد و زمان‌بندی Cron را نیز تغییر نمی‌دهد.', 'ksh-kanoon-articles' ); ?></p>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::EXPORT_ACTION ); ?>">
+				<?php wp_nonce_field( self::EXPORT_NONCE ); ?>
+				<?php submit_button( __( 'دانلود گزارش JSON', 'ksh-kanoon-articles' ), 'secondary', 'submit', false ); ?>
 			</form>
 		</div>
 		<?php
