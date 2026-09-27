@@ -63,16 +63,16 @@ final class Diagnostic_Report {
 	 * @return array<string,mixed>
 	 */
 	public function build() {
-		$clock          = $this->clock;
-		$runtime_facts  = $this->runtime_facts;
-		$generated_at   = (string) $clock();
-		$next_run       = $this->scheduler->next_run();
-		$scheduled      = false !== $next_run;
-		$last_manual    = $this->run_summary_report( $this->store->get_run_summary( 'manual' ), 'manual' );
-		$last_cron      = $this->run_summary_report( $this->store->get_run_summary( 'cron' ), 'cron' );
-		$cron_observed  = null !== $last_cron;
-		$latest         = $this->snapshot_report( 'latest' );
-		$weekly         = $this->snapshot_report( 'weekly_popular' );
+		$clock              = $this->clock;
+		$runtime_facts      = $this->runtime_facts;
+		$generated_at       = (string) $clock();
+		$next_run           = $this->scheduler->next_run();
+		$scheduled          = false !== $next_run;
+		$last_manual        = $this->run_summary_report( $this->store->get_run_summary( 'manual' ), 'manual' );
+		$last_cron          = $this->run_summary_report( $this->store->get_run_summary( 'cron' ), 'cron' );
+		$cron_observed      = null !== $last_cron;
+		$latest             = $this->snapshot_report( 'latest' );
+		$weekly             = $this->snapshot_report( 'weekly_popular' );
 		$latest_attempt     = $this->attempt_report( $this->store->get_attempt( 'latest' ) );
 		$weekly_attempt     = $this->attempt_report( $this->store->get_attempt( 'weekly_popular' ) );
 		$manual_summary_gap = $this->attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'manual', $last_manual );
@@ -119,17 +119,17 @@ final class Diagnostic_Report {
 				),
 			),
 			'assessment' => array(
-				'local_latest_available'                    => ! empty( $latest['available'] ),
-				'local_latest_valid'                        => ! empty( $latest['valid'] ),
-				'local_weekly_available'                    => ! empty( $weekly['available'] ),
-				'local_weekly_valid'                        => ! empty( $weekly['valid'] ),
-				'scheduler_registered'                      => $scheduled,
-				'cron_execution_observed'                   => $cron_observed,
-				'last_cron_overall_status'                  => $cron_observed ? $last_cron['overall_status'] : null,
-				'manual_attempts_without_matching_summary'  => $manual_summary_gap,
-				'cron_attempts_without_matching_summary'    => $cron_summary_gap,
-				'observability_incomplete'                  => $manual_summary_gap || $cron_summary_gap,
-				'diagnostic_state'                          => $this->diagnostic_state( $scheduled, $cron_observed ),
+				'local_latest_available'                   => ! empty( $latest['available'] ),
+				'local_latest_valid'                       => ! empty( $latest['valid'] ),
+				'local_weekly_available'                   => ! empty( $weekly['available'] ),
+				'local_weekly_valid'                       => ! empty( $weekly['valid'] ),
+				'scheduler_registered'                     => $scheduled,
+				'cron_execution_observed'                  => $cron_observed,
+				'last_cron_overall_status'                 => $cron_observed ? $last_cron['overall_status'] : null,
+				'manual_attempts_without_matching_summary' => $manual_summary_gap,
+				'cron_attempts_without_matching_summary'   => $cron_summary_gap,
+				'observability_incomplete'                 => $manual_summary_gap || $cron_summary_gap,
+				'diagnostic_state'                         => $this->diagnostic_state( $scheduled, $cron_observed ),
 			),
 		);
 	}
@@ -342,15 +342,19 @@ final class Diagnostic_Report {
 		if (
 			! is_array( $latest_attempt ) ||
 			! is_array( $weekly_attempt ) ||
-			$trigger !== ( isset( $latest_attempt['trigger'] ) ? $latest_attempt['trigger'] : '' ) ||
-			$trigger !== ( isset( $weekly_attempt['trigger'] ) ? $weekly_attempt['trigger'] : '' ) ||
+			( isset( $latest_attempt['trigger'] ) ? $latest_attempt['trigger'] : '' ) !== $trigger ||
+			( isset( $weekly_attempt['trigger'] ) ? $weekly_attempt['trigger'] : '' ) !== $trigger ||
 			empty( $latest_attempt['run_id'] ) ||
 			$latest_attempt['run_id'] !== $weekly_attempt['run_id']
 		) {
 			return false;
 		}
 
-		return ! is_array( $summary ) || $latest_attempt['run_id'] !== ( isset( $summary['run_id'] ) ? $summary['run_id'] : null );
+		if ( ! is_array( $summary ) ) {
+			return true;
+		}
+
+		return ( isset( $summary['run_id'] ) ? $summary['run_id'] : null ) !== $latest_attempt['run_id'];
 	}
 
 	/**
