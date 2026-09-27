@@ -117,14 +117,14 @@ final class Diagnostic_Report {
 				),
 			),
 			'assessment' => array(
-				'local_latest_available'     => ! empty( $latest['available'] ),
-				'local_latest_valid'         => ! empty( $latest['valid'] ),
-				'local_weekly_available'     => ! empty( $weekly['available'] ),
-				'local_weekly_valid'         => ! empty( $weekly['valid'] ),
-				'scheduler_registered'       => $scheduled,
-				'cron_execution_observed'    => $cron_observed,
-				'last_cron_overall_status'   => $cron_observed ? $last_cron['overall_status'] : null,
-				'diagnostic_state'           => $this->diagnostic_state( $scheduled, $cron_observed ),
+				'local_latest_available'   => ! empty( $latest['available'] ),
+				'local_latest_valid'       => ! empty( $latest['valid'] ),
+				'local_weekly_available'   => ! empty( $weekly['available'] ),
+				'local_weekly_valid'       => ! empty( $weekly['valid'] ),
+				'scheduler_registered'     => $scheduled,
+				'cron_execution_observed'  => $cron_observed,
+				'last_cron_overall_status' => $cron_observed ? $last_cron['overall_status'] : null,
+				'diagnostic_state'         => $this->diagnostic_state( $scheduled, $cron_observed ),
 			),
 		);
 	}
@@ -250,16 +250,16 @@ final class Diagnostic_Report {
 		$action         = isset( $attempt['action'] ) ? (string) $attempt['action'] : '';
 
 		return array(
-			'schema_version'                => isset( $attempt['schema_version'] ) ? (int) $attempt['schema_version'] : null,
-			'trigger'                       => $trigger,
-			'run_id'                        => $run_id,
-			'attribution'                   => $explicit ? 'explicit' : 'legacy_or_unknown',
-			'attempted_at'                  => isset( $attempt['attempted_at'] ) ? (string) $attempt['attempted_at'] : null,
-			'candidate_status'              => isset( $attempt['candidate_status'] ) ? (string) $attempt['candidate_status'] : 'unknown',
-			'http_code'                     => isset( $attempt['http_code'] ) && is_numeric( $attempt['http_code'] ) ? (int) $attempt['http_code'] : null,
-			'action'                        => $action,
-			'reason'                        => isset( $attempt['reason'] ) ? (string) $attempt['reason'] : '',
-			'preserved_last_known_good'     => 'preserved_previous' === $action,
+			'schema_version'            => isset( $attempt['schema_version'] ) ? (int) $attempt['schema_version'] : null,
+			'trigger'                   => $trigger,
+			'run_id'                    => $run_id,
+			'attribution'               => $explicit ? 'explicit' : 'legacy_or_unknown',
+			'attempted_at'              => isset( $attempt['attempted_at'] ) ? (string) $attempt['attempted_at'] : null,
+			'candidate_status'          => isset( $attempt['candidate_status'] ) ? (string) $attempt['candidate_status'] : 'unknown',
+			'http_code'                 => isset( $attempt['http_code'] ) && is_numeric( $attempt['http_code'] ) ? (int) $attempt['http_code'] : null,
+			'action'                    => $action,
+			'reason'                    => isset( $attempt['reason'] ) ? (string) $attempt['reason'] : '',
+			'preserved_last_known_good' => 'preserved_previous' === $action,
 		);
 	}
 
