@@ -12,12 +12,12 @@ namespace KSH\KanoonArticles;
  */
 final class Admin_Page {
 
-	const CAPABILITY      = 'manage_options';
-	const MENU_SLUG       = 'ksh-kanoon-articles-preview';
-	const NONCE           = 'ksh_kanoon_articles_preview';
-	const REFRESH_NONCE   = 'ksh_kanoon_articles_refresh';
-	const EXPORT_NONCE    = 'ksh_kanoon_articles_diagnostic_export';
-	const EXPORT_ACTION   = 'ksh_kanoon_articles_download_diagnostic';
+	const CAPABILITY    = 'manage_options';
+	const MENU_SLUG     = 'ksh-kanoon-articles-preview';
+	const NONCE         = 'ksh_kanoon_articles_preview';
+	const REFRESH_NONCE = 'ksh_kanoon_articles_refresh';
+	const EXPORT_NONCE  = 'ksh_kanoon_articles_diagnostic_export';
+	const EXPORT_ACTION = 'ksh_kanoon_articles_download_diagnostic';
 
 	/**
 	 * Read-only Preview service.
@@ -64,8 +64,8 @@ final class Admin_Page {
 	/**
 	 * Create the native admin controller.
 	 *
-	 * @param Preview_Service $preview   Read-only Preview service.
-	 * @param Refresh_Service $refresh   Canonical local refresh service.
+	 * @param Preview_Service        $preview             Read-only Preview service.
+	 * @param Refresh_Service        $refresh             Canonical local refresh service.
 	 * @param Snapshot_Store         $store               Local snapshot/status store.
 	 * @param Scheduler              $scheduler           Native schedule owner.
 	 * @param Diagnostic_Report|null $diagnostic          Read-only report builder.
