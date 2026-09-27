@@ -45,16 +45,18 @@ The bounded plugin implementation lives at:
 
 `wp-content/plugins/ksh-kanoon-articles/`
 
-Current backend capability includes:
+Current plugin capability includes:
 
 - the explicit read-only wp-admin Preview/Test Connection under Tools;
 - Owner-observed real-host Preview success for Latest (20 records / HTTP 200) and Weekly Popular (16 records / HTTP 200);
+- Owner-observed real-host v0.2.1 Cron execution with `overall_status=success`, Latest local_count=20, Weekly local_count=16, and complete persisted observability on WordPress 7.1.2 / PHP 8.3.33;
 - independent non-autoloaded local snapshots and bounded per-list attempt state;
 - one canonical refresh service with explicit `manual` / `cron` origin at its production entry points;
 - separate non-autoloaded latest Manual/Cron run summaries plus bounded run identity;
 - one daily native WP-Cron hook with cheap upgrade-safe schedule self-healing;
 - one-click authenticated **دانلود گزارش JSON** support bundle from the existing Tools page;
-- deactivation unscheduling without snapshot deletion.
+- deactivation unscheduling without snapshot deletion;
+- a public local-only renderer plus the builder/theme-agnostic `[ksh_kanoon_articles]` shortcode, with scoped responsive RTL presentation.
 
 Important boundaries:
 
@@ -63,10 +65,10 @@ Important boundaries:
 - `wp_next_scheduled()` / schedule registration never proves the Cron callback executed;
 - actual Cron execution is considered observed only from persisted `cron`-origin run evidence written by the scheduled callback path;
 - Latest and Weekly Popular remain independently validatable and replaceable;
-- repository/stub tests prove attribution/export logic but do not prove actual future WP-Cron firing on the KSH host;
-- the observed real-host Preview qualified acquisition/parser behavior at that execution time, but future DOM/network stability and frontend behavior remain separate evidence boundaries.
+- repository/stub tests prove exercised renderer, attribution, persistence, scheduling, and export logic but do not guarantee future WP-Cron firing on the KSH host;
+- the observed real-host Preview and Cron run qualify those exact observed runtime executions, while future DOM/network stability and the v0.3.0 frontend on the real KSH page remain separate evidence boundaries.
 
-Do not add frontend presentation or production deployment as an incidental extension of this stage.
+Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
 ## Design authority
 
@@ -82,7 +84,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It now covers the existing foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export tests. Treat the downloaded real-host JSON as the preferred operational qualification artifact; repository tests still cannot prove that KSH WP-Cron actually fired. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It covers foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove real-page visual integration. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
@@ -91,7 +93,7 @@ composer cs
 composer test
 ```
 
-Do not treat static/unit/fixture/stub success as proof of actual future WP-Cron execution or future live-source compatibility.
+Do not treat static/unit/fixture/stub success as proof of future WP-Cron execution, future live-source compatibility, or authentic real-page visual fidelity.
 
 ## Change boundaries
 

@@ -151,7 +151,11 @@ The implementation requires a **read-only Preview/Test Connection qualification 
 - Weekly Popular: PASS, 16 valid records, HTTP 200;
 - WordPress version visibly observed on the real host: 7.1.2.
 
-This qualifies the observed runtime path from the real KSH host through WordPress HTTP acquisition, current Kanoon HTML, parser/validation, and normalized results at that execution. It does not prove future DOM/network availability, persistence correctness, future scheduled execution, frontend rendering, or the exact production PHP version.
+This qualified the observed runtime path from the real KSH host through WordPress HTTP acquisition, current Kanoon HTML, parser/validation, and normalized results at that execution.
+
+After merged PR #4, the Owner installed plugin v0.2.1 and downloaded the real-host diagnostic JSON. That artifact observed WordPress 7.1.2, PHP 8.3.33, `event_registered=true`, daily recurrence, `cron_execution_observed=true`, a Cron-origin `overall_status=success`, Latest local_count=20, Weekly Popular local_count=16, and `observability_incomplete=false`. Therefore one real chain from WP-Cron through acquisition, validation, independent local persistence, and diagnostic persistence is proven for that observed execution.
+
+These runtime observations do not guarantee future Cron firing or future Kanoon DOM/network stability. The new public frontend remains a separate real-host/browser evidence boundary until v0.3.0 is deployed and exercised.
 
 ---
 
@@ -174,7 +178,9 @@ Current platform decision: **WordPress**.
 
 The Kanoon article-list responsibility lives as a **small site-specific WordPress plugin-level component**, independent enough from presentation that source parsing/refresh can be maintained without coupling visitor UI to remote availability.
 
-Current backend implementation includes read-only Preview, independent local last-known-good snapshots, bounded per-list attempt state, explicit Manual/Cron refresh attribution through one canonical refresh service, one approximately-daily native WP-Cron path, separate latest Manual/Cron run summaries, and a one-click read-only JSON diagnostic export from the existing Tools page. The frontend article module remains intentionally separate and not yet implemented.
+Current plugin implementation includes read-only Preview, independent local last-known-good snapshots, bounded per-list attempt state, explicit Manual/Cron refresh attribution through one canonical refresh service, one approximately-daily native WP-Cron path, separate latest Manual/Cron run summaries, and a one-click read-only JSON diagnostic export from the existing Tools page.
+
+The public presentation layer is also implemented as a reusable local-snapshot renderer plus the standard `[ksh_kanoon_articles]` shortcode. It reads only `Snapshot_Store::get_snapshot()`, never triggers acquisition/refresh, fails softly when one or both lists are unavailable, and uses one small fully scoped responsive RTL stylesheet. There is no Elementor-specific or Gutenberg-specific business/data implementation.
 
 Use WordPress-native APIs where appropriate and keep environment-specific secrets out of Git.
 
@@ -245,9 +251,10 @@ As implementation evolves, extend this same canonical verification path with app
 - no visitor-time remote dependency;
 - small custom WordPress extractor family;
 - real-host read-only Preview gate before writes/scheduling;
-- Owner-executed real-host Preview PASS for Latest and Weekly Popular on the observed KSH runtime path.
+- Owner-executed real-host Preview PASS for Latest and Weekly Popular;
+- Owner-observed real-host v0.2.1 Cron execution on WordPress 7.1.2 / PHP 8.3.33 with `overall_status=success`, Latest local_count=20, Weekly local_count=16, and complete persisted observability.
 
-### Implemented backend stage
+### Implemented backend/runtime stage
 
 - read-only Preview/Test Connection;
 - independent validated per-list snapshot storage using WordPress Options;
@@ -259,34 +266,45 @@ As implementation evolves, extend this same canonical verification path with app
 - deterministic separation between schedule registration and persisted Cron execution evidence;
 - deactivation unscheduling without deleting valid snapshots or diagnostic run summaries.
 
-### Not yet proven / not yet implemented
+### Implemented public/frontend stage
 
-- actual future WP-Cron firing on the real KSH host after v0.2.1 is installed; this remains `NOT_PROVEN` until a real-host diagnostic report contains persisted `trigger=cron` run evidence;
-- future source-DOM/network stability;
-- final public/frontend article presentation;
-- production deployment procedure beyond the Owner's normal plugin installation path.
+- reusable renderer owned by `ksh-kanoon-articles`;
+- standard placement seam: `[ksh_kanoon_articles]`;
+- renderer reads only the existing local snapshot boundary;
+- Latest and Weekly Popular preserve stored ordering and render all available validated items;
+- non-empty Latest `date_context` is rendered;
+- one-list availability renders cleanly and zero-list availability returns no module;
+- output is escaped at the public boundary and malformed local state fails closed;
+- Persian RTL two-column/stacked responsive presentation with fully scoped CSS and no frontend JavaScript;
+- no Elementor widget, Gutenberg block, visitor-time remote fallback, or public diagnostics panel.
 
-Do not upgrade any of these to `PASS` from repository tests alone.
+### Still NOT_PROVEN
+
+- future Kanoon DOM/network stability;
+- every future WP-Cron execution after the one observed v0.2.1 run;
+- authentic real-host/browser visual integration of the v0.3.0 shortcode at desktop/mobile widths;
+- production deployment procedure beyond the Owner's normal plugin installation/content-placement path.
+
+Repository tests may prove exercised deterministic behavior, but they must not be used to upgrade these remaining runtime/browser facts.
 
 ---
 
 ## 12. Near-term implementation sequence
 
-The read-only real-host acquisition gate has passed, and the backend now includes validated local persistence, bounded native refresh scheduling, explicit refresh-origin observability, and the one-click diagnostic export required for operational qualification.
+The acquisition/persistence/scheduler runtime gate is now qualified for the observed v0.2.1 real-host execution, so the admitted next stage is the local public presentation layer.
 
-The Owner's normal post-merge/runtime workflow is:
+After this frontend PR is merged, the safest real-host validation is:
 
-1. install/update the plugin;
-2. allow normal site operation / WP-Cron opportunity;
-3. open the existing plugin Tools page;
-4. click **دانلود گزارش JSON**;
-5. provide that single JSON file to the Project Manager / LLM.
+1. install/update plugin v0.3.0 through the Owner's normal WordPress path;
+2. place `[ksh_kanoon_articles]` using ordinary WordPress content or the page builder's normal Shortcode surface;
+3. load the real page and verify Latest + Weekly Popular render from current local snapshots;
+4. inspect representative desktop (~1440 px) and mobile (~390 px) widths for RTL order, wrapping, focus visibility, and absence of horizontal scrolling;
+5. confirm page rendering does not trigger a refresh/acquisition;
+6. download the diagnostic JSON again and verify snapshot, Cron, and observability state remain intact.
 
-That report is the preferred support bundle. It must remain read-only and distinguish `event_registered=true` from `cron_execution_observed=true`. A registered event without persisted Cron-origin run evidence is not Cron PASS.
+The diagnostic download remains the preferred bounded support artifact and must stay read-only. Future source compatibility and future Cron runs remain operational evidence questions, not assumptions.
 
-Do **not** proceed to the frontend article module based on repository tests alone; use the real-host diagnostic report for the remaining runtime qualification facts.
-
-For the broader site, implementation should follow the accepted visual structure and actual WordPress environment rather than creating speculative infrastructure.
+For the broader site, implementation should continue to follow the accepted visual structure and actual WordPress environment rather than creating speculative infrastructure.
 
 ---
 

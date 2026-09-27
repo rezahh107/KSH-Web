@@ -11,13 +11,18 @@ declare(strict_types=1);
 use KSH\KanoonArticles\Admin_Page;
 use KSH\KanoonArticles\Article_Parser;
 use KSH\KanoonArticles\Diagnostic_Report;
+use KSH\KanoonArticles\Frontend_Renderer;
 use KSH\KanoonArticles\Plugin;
 use KSH\KanoonArticles\Preview_Service;
 use KSH\KanoonArticles\Refresh_Service;
 use KSH\KanoonArticles\Scheduler;
+use KSH\KanoonArticles\Shortcode;
 use KSH\KanoonArticles\Snapshot_Store;
 
 $GLOBALS['ksh_test_actions']          = array();
+$GLOBALS['ksh_test_shortcodes']       = array();
+$GLOBALS['ksh_test_styles']           = array();
+$GLOBALS['ksh_test_esc_url_calls']    = 0;
 $GLOBALS['ksh_test_cron']             = array();
 $GLOBALS['ksh_test_current_user_can'] = true;
 $GLOBALS['ksh_test_capability']       = null;
@@ -27,6 +32,11 @@ $GLOBALS['wp_version']                = '7.1.2';
 if ( ! function_exists( 'add_action' ) ) {
 	function add_action( $hook, $callback ) {
 		$GLOBALS['ksh_test_actions'][ $hook ][] = $callback;
+	}
+}
+if ( ! function_exists( 'add_shortcode' ) ) {
+	function add_shortcode( $tag, $callback ) {
+		$GLOBALS['ksh_test_shortcodes'][ $tag ] = $callback;
 	}
 }
 if ( ! function_exists( 'wp_next_scheduled' ) ) {
@@ -58,16 +68,32 @@ if ( ! function_exists( '__' ) ) {
 	function __( $text ) { return $text; }
 }
 if ( ! function_exists( 'esc_html__' ) ) {
-	function esc_html__( $text ) { return $text; }
+	function esc_html__( $text ) { return htmlspecialchars( (string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ); }
 }
 if ( ! function_exists( 'esc_html' ) ) {
-	function esc_html( $text ) { return (string) $text; }
+	function esc_html( $text ) { return htmlspecialchars( (string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ); }
 }
 if ( ! function_exists( 'esc_attr' ) ) {
-	function esc_attr( $text ) { return (string) $text; }
+	function esc_attr( $text ) { return htmlspecialchars( (string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' ); }
 }
 if ( ! function_exists( 'esc_url' ) ) {
-	function esc_url( $text ) { return (string) $text; }
+	function esc_url( $text ) {
+		++$GLOBALS['ksh_test_esc_url_calls'];
+		return htmlspecialchars( (string) $text, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8' );
+	}
+}
+if ( ! function_exists( 'plugin_dir_url' ) ) {
+	function plugin_dir_url( $file ) { return 'https://example.test/wp-content/plugins/ksh-kanoon-articles/'; }
+}
+if ( ! function_exists( 'wp_enqueue_style' ) ) {
+	function wp_enqueue_style( $handle, $src = '', $deps = array(), $ver = false, $media = 'all' ) {
+		$GLOBALS['ksh_test_styles'][ $handle ] = array(
+			'src'   => (string) $src,
+			'deps'  => $deps,
+			'ver'   => $ver,
+			'media' => $media,
+		);
+	}
 }
 if ( ! function_exists( 'current_user_can' ) ) {
 	function current_user_can( $capability = '' ) {
@@ -124,6 +150,8 @@ require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/clas
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-diagnostic-report.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-admin-page.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-remote-fetcher.php';
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-frontend-renderer.php';
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-shortcode.php';
 require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-plugin.php';
 
 if ( ! class_exists( 'DOMDocument' ) ) {
@@ -873,6 +901,165 @@ assert_true( $blocked, 'unauthorized diagnostic download is blocked' );
 assert_same( null, $GLOBALS['ksh_test_nonce_action'], 'unauthorized download is rejected before nonce processing' );
 $GLOBALS['ksh_test_current_user_can'] = true;
 
+
+/* Public frontend renderer reads validated local snapshots only and fails softly. */
+$frontend_latest_items = array();
+for ( $i = 1; $i <= 21; ++$i ) {
+	$frontend_latest_items[] = array(
+		'title'        => 2 === $i ? '<script>alert("x")</script>' : 'تازه ' . $i,
+		'url'          => 'https://www.kanoon.ir/Article/' . ( 970000 + $i ),
+		'date_context' => 3 === $i ? '' : 'شنبه 4 مهر 1405',
+	);
+}
+
+$frontend_weekly_items = array();
+for ( $i = 1; $i <= 17; ++$i ) {
+	$frontend_weekly_items[] = array(
+		'title'        => 'محبوب ' . $i,
+		'url'          => 'https://www.kanoon.ir/Article/' . ( 980000 + $i ),
+		'date_context' => '',
+	);
+}
+
+$frontend_values = array(
+	Snapshot_Store::OPTION_LATEST_SNAPSHOT => array(
+		'schema_version' => Snapshot_Store::SCHEMA_VERSION,
+		'source'         => 'latest',
+		'source_url'     => 'https://www.kanoon.ir/Article/Days',
+		'items'          => $frontend_latest_items,
+		'count'          => count( $frontend_latest_items ),
+		'updated_at'     => '2026-09-27T10:19:14+00:00',
+		'date_context'   => 'شنبه 4 مهر 1405',
+	),
+	Snapshot_Store::OPTION_WEEKLY_SNAPSHOT => array(
+		'schema_version' => Snapshot_Store::SCHEMA_VERSION,
+		'source'         => 'weekly_popular',
+		'source_url'     => 'https://www.kanoon.ir/',
+		'items'          => $frontend_weekly_items,
+		'count'          => count( $frontend_weekly_items ),
+		'updated_at'     => '2026-09-27T10:19:14+00:00',
+		'date_context'   => '',
+	),
+);
+$frontend_reads  = 0;
+$frontend_writes = 0;
+$frontend_get    = static function ( $name, $default = false ) use ( &$frontend_values, &$frontend_reads ) {
+	++$frontend_reads;
+	return array_key_exists( $name, $frontend_values ) ? $frontend_values[ $name ] : $default;
+};
+$frontend_reject_write = static function () use ( &$frontend_writes ) {
+	++$frontend_writes;
+	throw new RuntimeException( 'frontend rendering must remain read-only' );
+};
+$frontend_store    = new Snapshot_Store( $frontend_get, $frontend_reject_write, $frontend_reject_write );
+$renderer          = new Frontend_Renderer( $frontend_store );
+$frontend_before   = $frontend_values;
+$remote_before     = $fetch_count;
+$cron_before       = $GLOBALS['ksh_test_cron'];
+$esc_url_before    = $GLOBALS['ksh_test_esc_url_calls'];
+$frontend_html     = $renderer->render();
+$expected_link_urls = array_merge(
+	array_column( $frontend_latest_items, 'url' ),
+	array_column( $frontend_weekly_items, 'url' )
+);
+
+assert_same( $remote_before, $fetch_count, 'frontend rendering performs zero remote acquisitions' );
+assert_same( $frontend_before, $frontend_values, 'frontend rendering performs zero snapshot/attempt/run-summary mutations' );
+assert_same( 0, $frontend_writes, 'frontend rendering never reaches option writes' );
+assert_same( $cron_before, $GLOBALS['ksh_test_cron'], 'frontend rendering performs zero Cron schedule mutations' );
+assert_true( $frontend_reads >= 2, 'frontend renderer reads local snapshot state through the store boundary' );
+assert_true( false !== strpos( $frontend_html, '<section class="ksh-kanoon-articles" dir="rtl" lang="fa">' ), 'frontend module exposes explicit Persian RTL semantics' );
+assert_true( false !== strpos( $frontend_html, '>تازه‌های کانون</h2>' ), 'frontend module renders canonical section label' );
+assert_true( false !== strpos( $frontend_html, '>تازه‌ها</h3>' ), 'frontend module renders Latest panel label' );
+assert_true( false !== strpos( $frontend_html, '>پربازدید هفته</h3>' ), 'frontend module renders Weekly Popular panel label' );
+assert_same( count( $expected_link_urls ), $GLOBALS['ksh_test_esc_url_calls'] - $esc_url_before, 'every rendered article URL passes through esc_url' );
+
+$rendered_links = array();
+preg_match_all( '/<a class="ksh-kanoon-articles__link" href="([^"]+)">/', $frontend_html, $rendered_links );
+assert_same( $expected_link_urls, $rendered_links[1], 'frontend preserves both stored list orders and renders every available item without truncation' );
+assert_true( false !== strpos( $frontend_html, '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' ), 'frontend escapes article titles at output' );
+assert_same( false, false !== strpos( $frontend_html, '<script>alert("x")</script>' ), 'frontend never emits raw article-title HTML' );
+assert_same( 20, substr_count( $frontend_html, 'class="ksh-kanoon-articles__meta"' ), 'Latest renders non-empty date_context only and omits empty metadata markup' );
+
+$weekly_only_values = array(
+	Snapshot_Store::OPTION_WEEKLY_SNAPSHOT => $frontend_values[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ],
+);
+$weekly_only_get = static function ( $name, $default = false ) use ( &$weekly_only_values ) {
+	return array_key_exists( $name, $weekly_only_values ) ? $weekly_only_values[ $name ] : $default;
+};
+$weekly_only_store  = new Snapshot_Store( $weekly_only_get, $frontend_reject_write, $frontend_reject_write );
+$weekly_only_html   = ( new Frontend_Renderer( $weekly_only_store ) )->render();
+assert_true( false !== strpos( $weekly_only_html, '>پربازدید هفته</h3>' ), 'one available list still renders cleanly' );
+assert_same( false, false !== strpos( $weekly_only_html, '>تازه‌ها</h3>' ), 'missing Latest is not silently substituted from Weekly' );
+assert_true( false !== strpos( $weekly_only_html, 'ksh-kanoon-articles__grid--single' ), 'single-list fail-soft layout expands cleanly' );
+
+$missing_values = array();
+$missing_get    = static function ( $name, $default = false ) use ( &$missing_values ) {
+	return array_key_exists( $name, $missing_values ) ? $missing_values[ $name ] : $default;
+};
+$missing_store = new Snapshot_Store( $missing_get, $frontend_reject_write, $frontend_reject_write );
+assert_same( '', ( new Frontend_Renderer( $missing_store ) )->render(), 'both missing lists fail softly with no public technical panel' );
+
+$malformed_values = array(
+	Snapshot_Store::OPTION_LATEST_SNAPSHOT => array(
+		'schema_version' => Snapshot_Store::SCHEMA_VERSION,
+		'source'         => 'latest',
+		'items'          => array(
+			array(
+				'title'        => '<img src=x onerror=alert(1)>',
+				'url'          => 'javascript:alert(1)',
+				'date_context' => 'خراب',
+			),
+		),
+		'count'          => 1,
+		'updated_at'     => '2026-09-27T10:19:14+00:00',
+		'date_context'   => '',
+	),
+);
+$malformed_get = static function ( $name, $default = false ) use ( &$malformed_values ) {
+	return array_key_exists( $name, $malformed_values ) ? $malformed_values[ $name ] : $default;
+};
+$malformed_store = new Snapshot_Store( $malformed_get, $frontend_reject_write, $frontend_reject_write );
+assert_same( '', ( new Frontend_Renderer( $malformed_store ) )->render(), 'malformed local state fails closed without unsafe public output or remote fallback' );
+
+$GLOBALS['ksh_test_shortcodes'] = array();
+$GLOBALS['ksh_test_styles']     = array();
+$shortcode                      = new Shortcode( $renderer );
+$shortcode->register();
+assert_true( isset( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'public shortcode is registered' );
+assert_true( is_array( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ) && $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ][0] === $shortcode, 'shortcode callback delegates through the owned adapter' );
+assert_true( isset( $GLOBALS['ksh_test_actions']['wp_enqueue_scripts'] ), 'frontend stylesheet uses the native public enqueue lifecycle' );
+$shortcode->enqueue_styles();
+assert_true( isset( $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ] ), 'frontend stylesheet is enqueued under one owned handle' );
+assert_same( 'https://example.test/wp-content/plugins/ksh-kanoon-articles/assets/css/frontend.css', $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ]['src'], 'frontend stylesheet path is plugin-owned' );
+assert_same( Plugin::VERSION, $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ]['ver'], 'frontend stylesheet cache version follows plugin version' );
+assert_same( $frontend_html, call_user_func( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'shortcode output is exactly the reusable renderer output' );
+
+$frontend_source = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-frontend-renderer.php' );
+$shortcode_source = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-shortcode.php' );
+assert_true( is_string( $frontend_source ) && is_string( $shortcode_source ), 'frontend source is available for architecture regression checks' );
+foreach ( array( 'Remote_Fetcher', 'Preview_Service', 'Refresh_Service', 'wp_remote_', 'save_snapshot', 'save_attempt', 'save_run_summary', 'ensure_scheduled' ) as $forbidden_frontend_dependency ) {
+	assert_same(
+		false,
+		false !== strpos( $frontend_source . $shortcode_source, $forbidden_frontend_dependency ),
+		'frontend code has no reachable acquisition/refresh/mutation dependency: ' . $forbidden_frontend_dependency
+	);
+}
+assert_true( false !== strpos( $frontend_source, 'get_snapshot' ), 'frontend renderer depends on the existing local snapshot read boundary' );
+
+$frontend_css = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/assets/css/frontend.css' );
+assert_true( is_string( $frontend_css ) && '' !== $frontend_css, 'frontend CSS exists' );
+assert_true( false !== strpos( $frontend_css, '@media (max-width: 48rem)' ), 'frontend CSS declares a bounded mobile breakpoint' );
+assert_true( false !== strpos( $frontend_css, 'grid-template-columns: 1fr;' ), 'frontend CSS stacks list panels on narrow screens' );
+assert_true( false !== strpos( $frontend_css, ':focus-visible' ), 'frontend CSS provides visible keyboard focus styling' );
+foreach ( preg_split( '/\R/', $frontend_css ) as $css_line ) {
+	$css_line = trim( $css_line );
+	if ( '' === $css_line || '{' !== substr( $css_line, -1 ) || 0 === strpos( $css_line, '@' ) ) {
+		continue;
+	}
+	assert_same( 0, strpos( $css_line, '.ksh-kanoon-articles' ), 'every concrete frontend CSS selector is scoped below the module root' );
+}
+
 /* Schedule ensure, activation, and deactivation boundaries still do not acquire remotely. */
 $before = $fetch_count;
 assert_true( $scheduler->ensure_scheduled(), 'missing schedule is registered successfully' );
@@ -891,10 +1078,13 @@ Plugin::deactivate();
 assert_same( false, wp_next_scheduled( Scheduler::HOOK ), 'deactivation removes scheduled events' );
 assert_same( $snapshot_before_deactivate, $store->get_snapshot( 'latest' ), 'deactivation does not delete valid snapshots' );
 
-$GLOBALS['ksh_test_actions'] = array();
-$before                      = $fetch_count;
+$GLOBALS['ksh_test_actions']    = array();
+$GLOBALS['ksh_test_shortcodes'] = array();
+$before                         = $fetch_count;
 Plugin::boot();
 assert_true( isset( $GLOBALS['ksh_test_actions'][ 'admin_post_' . Admin_Page::EXPORT_ACTION ][0] ), 'plugin boot registers authenticated native diagnostic download handler' );
+assert_true( isset( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'plugin boot registers the public Kanoon shortcode' );
+assert_true( isset( $GLOBALS['ksh_test_actions']['wp_enqueue_scripts'][0] ), 'plugin boot registers the bounded frontend style enqueue hook' );
 assert_same( $before, $fetch_count, 'plugin boot remains remote-acquisition free' );
 
 echo 'TEST_PASS assertions=' . $assertions . PHP_EOL;
