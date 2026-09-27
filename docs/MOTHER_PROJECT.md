@@ -141,13 +141,17 @@ KSH-Web UI reads local data only
 - Latest and Weekly Popular should be independently validatable so one failing list does not require destroying the other healthy list.
 - Malformed/zero/ambiguous extraction must fail before replacement of valid local data.
 
-### Qualification strategy
+### Qualification strategy and current evidence
 
 A separate simulation laboratory is **not required as a prerequisite** for this feature.
 
-The implementation should instead provide a **read-only Preview/Test Connection qualification path on the real target WordPress host before writes/scheduling are enabled**. That preview should prove usable remote acquisition and the exact parsing boundary for Latest and Weekly Popular on the actual host/network path.
+The implementation requires a **read-only Preview/Test Connection qualification path on the real target WordPress host before writes/scheduling are enabled**. That gate has now been executed successfully by the Owner using the merged v0.1.0 plugin:
 
-Until that real-host preview executes successfully, production-host acquisition and exact source-DOM behavior remain `NOT_PROVEN`.
+- Latest: PASS, 20 valid records, HTTP 200;
+- Weekly Popular: PASS, 16 valid records, HTTP 200;
+- WordPress version visibly observed on the real host: 7.1.2.
+
+This qualifies the observed runtime path from the real KSH host through WordPress HTTP acquisition, current Kanoon HTML, parser/validation, and normalized results at that execution. It does not prove future DOM/network availability, persistence correctness, future scheduled execution, frontend rendering, or the exact production PHP version.
 
 ---
 
@@ -168,9 +172,9 @@ If live source structure changes materially, repair the smallest extraction boun
 
 Current platform decision: **WordPress**.
 
-At repository-foundation time, the final decomposition of theme/plugin/source directories is not yet globally frozen. Do not invent a full code architecture in documentation before implementation work establishes it.
+The Kanoon article-list responsibility lives as a **small site-specific WordPress plugin-level component**, independent enough from presentation that source parsing/refresh can be maintained without coupling visitor UI to remote availability.
 
-One exception is already selected: the Kanoon article-list acquisition should live as a **small site-specific WordPress component/plugin-level responsibility**, independent enough from presentation that source parsing/sync can be maintained without coupling the visitor UI to remote availability.
+Current backend implementation includes read-only Preview, independent local last-known-good snapshots, bounded per-list attempt state, explicit manual refresh, and one approximately-daily native WP-Cron path. The frontend article module remains intentionally separate and not yet implemented.
 
 Use WordPress-native APIs where appropriate and keep environment-specific secrets out of Git.
 
@@ -222,7 +226,7 @@ Current verification contract:
 bash scripts/verify-foundation.sh
 ```
 
-This is only the foundation-stage contract. As real implementation code is introduced, extend the same canonical verification path with applicable build/lint/static-analysis/test/runtime checks.
+As implementation evolves, extend this same canonical verification path with applicable build/lint/static-analysis/test/runtime checks rather than creating parallel entrypoints.
 
 ---
 
@@ -237,27 +241,41 @@ This is only the foundation-stage contract. As real implementation code is intro
 - metadata-only Kanoon article-list feature;
 - Latest + Weekly Popular scope;
 - approximately daily/nightly background refresh;
-- local last-known-good snapshot;
+- independent local last-known-good snapshot semantics;
 - no visitor-time remote dependency;
 - small custom WordPress extractor family;
-- real-host read-only preview gate before writes/scheduling.
+- real-host read-only Preview gate before writes/scheduling;
+- Owner-executed real-host Preview PASS for Latest and Weekly Popular on the observed KSH runtime path.
+
+### Implemented backend stage
+
+- read-only Preview/Test Connection;
+- independent validated per-list snapshot storage using WordPress Options;
+- bounded per-list latest-attempt status;
+- explicit manual refresh using the same canonical refresh semantics as scheduling;
+- one native daily WP-Cron hook with upgrade-safe schedule existence repair;
+- deactivation unscheduling without deleting valid snapshots.
 
 ### Not yet proven / not yet implemented
 
-- exact production theme/plugin directory architecture beyond the locked article-extractor responsibility;
-- exact raw DOM selector used by the final extractor at implementation time;
-- production-host outbound acquisition until read-only preview executes on the target host;
-- final page copy/content details;
-- full implementation build/test/runtime stack;
-- production deployment procedure.
+- actual future WP-Cron firing on the real host after this stage is installed;
+- real-host persistence/manual-refresh/schedule-registration behavior until post-merge runtime validation;
+- future source-DOM/network stability;
+- exact production PHP version;
+- final public/frontend article presentation;
+- production deployment procedure beyond the Owner's normal plugin installation path.
 
-Do not upgrade any of these to `PASS` from documentation alone.
+Do not upgrade any of these to `PASS` from repository tests alone.
 
 ---
 
 ## 12. Near-term implementation sequence
 
-The next implementation phase should preserve the frozen decisions and proceed in small verifiable work units. For the article module, first implement the read-only acquisition/preview qualification on the real host, then enable validated local persistence/scheduling, and finally wire the local data into the responsive presentation layer.
+The read-only real-host acquisition gate has passed. The current implementation stage adds validated local persistence and bounded native refresh scheduling.
+
+After this stage is merged, the next required real-host validation is to verify plugin upgrade/install, Preview regression, manual snapshot creation, admin counts/timestamps/status, next-event registration, and absence of remote acquisition on ordinary page loads. Actual future cron execution remains separately observational until it fires or is explicitly triggered through a supported runtime test path.
+
+Do **not** proceed to the frontend article module until that persistence/manual-refresh/schedule-registration validation is complete.
 
 For the broader site, implementation should follow the accepted visual structure and actual WordPress environment rather than creating speculative infrastructure.
 
@@ -265,14 +283,12 @@ For the broader site, implementation should follow the accepted visual structure
 
 ## 13. Non-goals for repository foundation
 
-This foundation intentionally does not add:
+This project intentionally does not add without demonstrated need or Owner decision:
 
 - a license decision;
 - CODEOWNERS for a single-owner topology;
 - issue-form bureaucracy;
 - release machinery before a release model exists;
 - Git LFS for the current small reference asset;
-- speculative dependency/security automation without a real dependency stack;
-- placeholder build/test commands that do not yet exist.
-
-These may become applicable later if the repository reality changes.
+- speculative dependency/security automation;
+- unrelated infrastructure for the article integration.

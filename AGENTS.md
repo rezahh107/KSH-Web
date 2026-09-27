@@ -33,29 +33,36 @@ Do not let generated mockup copy, placeholder text, or visual artifacts override
 - The target lists are approximately 20 Latest items and Kanoon's own Weekly Popular ordering.
 - Normal visitor requests must not depend on a live request to `kanoon.ir`.
 - Refresh may be approximately daily/nightly after qualification.
-- Failed refreshes must preserve the previous last-known-good snapshot once persistence exists.
+- Failed refreshes must preserve the previous last-known-good snapshot.
 - The selected article acquisition family is a small site-specific WordPress extractor using WordPress Core HTTP APIs and local snapshot storage.
-- Before enabling writes/scheduling, implementation must provide a read-only preview/qualification path on the real target host.
+- The real-host read-only Preview/qualification gate must precede writes/scheduling; that gate has now passed for the observed Owner execution.
 
 See `docs/decisions/ADR-001-kanoon-article-list-mirror.md` for the complete contract.
 
 ## Current implementation
 
-The first bounded plugin implementation lives at:
+The bounded plugin implementation lives at:
 
 `wp-content/plugins/ksh-kanoon-articles/`
 
-Current admitted capability is only the explicit, read-only wp-admin Preview/Test Connection under Tools. It has no production article persistence, scheduled refresh, or frontend article rendering.
+Current backend capability includes:
+
+- the explicit read-only wp-admin Preview/Test Connection under Tools;
+- Owner-observed real-host Preview success for Latest (20 records / HTTP 200) and Weekly Popular (16 records / HTTP 200);
+- independent non-autoloaded local snapshots and bounded per-list attempt state;
+- one canonical manual/scheduled refresh service;
+- one daily native WP-Cron hook with cheap upgrade-safe schedule self-healing;
+- deactivation unscheduling without snapshot deletion.
 
 Important boundaries:
 
 - opening the admin page and plugin activation must not contact `kanoon.ir`;
-- remote acquisition runs only on the authorized nonce-protected Preview action;
-- Latest and Weekly Popular remain independently reportable;
-- fixture tests do not prove the production host/network/live DOM;
-- production-host acquisition remains `NOT_PROVEN` until the Preview succeeds on the real KSH host.
+- remote acquisition runs only on explicit Preview, explicit Manual Refresh, or the due scheduled refresh callback;
+- Latest and Weekly Popular remain independently validatable and replaceable;
+- repository/stub tests do not prove actual future WP-Cron firing;
+- the observed real-host Preview qualified acquisition/parser behavior at that execution time, but persistence on the real host, future DOM/network stability, frontend behavior, and exact production PHP remain separate evidence boundaries.
 
-Do not add persistence, scheduling, frontend presentation, or production deployment as an incidental extension of work on this stage.
+Do not add frontend presentation or production deployment as an incidental extension of this stage.
 
 ## Design authority
 
@@ -71,7 +78,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It now covers the existing foundation/design integrity plus the admitted plugin source with PHP syntax, WPCS, and deterministic parser/orchestration tests. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It now covers the existing foundation/design integrity plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle tests. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
@@ -80,7 +87,7 @@ composer cs
 composer test
 ```
 
-Do not treat static/unit/fixture success as proof of WordPress host networking or live source compatibility.
+Do not treat static/unit/fixture/stub success as proof of actual future WP-Cron execution or future live-source compatibility.
 
 ## Change boundaries
 
@@ -97,6 +104,6 @@ Do not treat static/unit/fixture success as proof of WordPress host networking o
 A change is complete only when:
 
 - it preserves current project authority and stated scope;
-- relevant docs/ADRs are updated when the contract changes;
+- relevant docs/ADRs are updated when the contract or current evidence changes;
 - the canonical verification command passes for the exact resulting Head;
 - any unexecuted runtime/production claims remain explicitly `NOT_PROVEN` rather than being inferred.

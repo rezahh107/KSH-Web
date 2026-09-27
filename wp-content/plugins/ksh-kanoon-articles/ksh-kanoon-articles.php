@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: KSH Kanoon Articles
- * Description: Read-only qualification foundation for Kanoon article-list metadata integration.
- * Version: 0.1.0
+ * Description: Qualified Kanoon article metadata acquisition with independent local last-known-good refresh.
+ * Version: 0.2.0
  * Text Domain: ksh-kanoon-articles
  *
  * @package KSH_Kanoon_Articles
@@ -18,7 +18,13 @@ require_once __DIR__ . '/includes/class-source-config.php';
 require_once __DIR__ . '/includes/class-remote-fetcher.php';
 require_once __DIR__ . '/includes/class-article-parser.php';
 require_once __DIR__ . '/includes/class-preview-service.php';
+require_once __DIR__ . '/includes/class-snapshot-store.php';
+require_once __DIR__ . '/includes/class-refresh-service.php';
+require_once __DIR__ . '/includes/class-scheduler.php';
 require_once __DIR__ . '/includes/class-admin-page.php';
 require_once __DIR__ . '/includes/class-plugin.php';
+
+register_activation_hook( __FILE__, array( Plugin::class, 'activate' ) );
+register_deactivation_hook( __FILE__, array( Plugin::class, 'deactivate' ) );
 
 Plugin::boot();
