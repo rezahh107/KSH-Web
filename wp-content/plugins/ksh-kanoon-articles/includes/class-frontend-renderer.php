@@ -108,10 +108,10 @@ final class Frontend_Renderer {
 		if (
 			! is_array( $snapshot ) ||
 			Snapshot_Store::SCHEMA_VERSION !== ( isset( $snapshot['schema_version'] ) ? (int) $snapshot['schema_version'] : 0 ) ||
-			$source !== ( isset( $snapshot['source'] ) ? (string) $snapshot['source'] : '' ) ||
+			( isset( $snapshot['source'] ) ? (string) $snapshot['source'] : '' ) !== $source ||
 			! isset( $snapshot['items'], $snapshot['count'] ) ||
 			! is_array( $snapshot['items'] ) ||
-			(int) $snapshot['count'] !== count( $snapshot['items'] ) ||
+			count( $snapshot['items'] ) !== (int) $snapshot['count'] ||
 			0 === count( $snapshot['items'] )
 		) {
 			return array();
