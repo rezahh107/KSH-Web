@@ -17,6 +17,9 @@ required_files=(
   "docs/design/UI_REFERENCE.md"
   "docs/design/assets/homepage-responsive-reference.webp"
   "docs/decisions/ADR-001-kanoon-article-list-mirror.md"
+  "elementor/homepage/README.md"
+  "elementor/homepage/ksh-public-homepage-body-v1.json"
+  "scripts/validate-elementor-homepage.php"
   "wp-content/plugins/ksh-kanoon-articles/ksh-kanoon-articles.php"
   "tests/run.php"
 )
@@ -69,9 +72,13 @@ fi
 
 while IFS= read -r php_file; do
   php -l "$php_file" >/dev/null
-done < <(find wp-content/plugins/ksh-kanoon-articles tests -type f -name '*.php' -print | sort)
+done < <(find wp-content/plugins/ksh-kanoon-articles tests scripts -type f -name '*.php' -print | sort)
 
 echo "PHP_SYNTAX_PASS"
+
+php scripts/validate-elementor-homepage.php
+
+echo "ELEMENTOR_HOMEPAGE_VERIFY_PASS"
 
 composer install --no-interaction --no-progress --prefer-dist
 composer cs
