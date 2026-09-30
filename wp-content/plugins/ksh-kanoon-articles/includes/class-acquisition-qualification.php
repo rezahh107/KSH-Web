@@ -22,16 +22,32 @@ final class Acquisition_Qualification {
 	 */
 	private $preview;
 
-	/** @var callable */
+	/**
+	 * WordPress option reader.
+	 *
+	 * @var callable
+	 */
 	private $get_option;
 
-	/** @var callable */
+	/**
+	 * WordPress option creator.
+	 *
+	 * @var callable
+	 */
 	private $add_option;
 
-	/** @var callable */
+	/**
+	 * WordPress option updater.
+	 *
+	 * @var callable
+	 */
 	private $update_option;
 
-	/** @var callable */
+	/**
+	 * UTC timestamp producer.
+	 *
+	 * @var callable
+	 */
 	private $clock;
 
 	/**
