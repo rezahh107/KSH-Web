@@ -161,7 +161,25 @@ KSH-Web UI reads local data only
 
 A separate simulation laboratory is **not required as a prerequisite** for this feature.
 
-The implementation requires a **read-only Preview/Test Connection qualification path on the real target WordPress host before writes/scheduling are enabled**.
+The implementation requires a **read-only Preview/Test Connection qualification path on the real target WordPress host before writes/scheduling are enabled**. This is enforced as runtime admission, not merely as documented sequencing.
+
+The exact acquisition/parser contract has an explicit identity independent from the plugin version. The current v0.4.0 identity is:
+
+```text
+kanoon-homepage-semantic-lists-v1
+```
+
+One bounded non-autoloaded qualification record is authoritative only when it names that exact identity and records successful current-contract qualification. Any material source/parser contract change must use a new identity; historical qualification from another identity becomes stale automatically.
+
+Ordinary Preview remains read-only and never mutates qualification state. A separate capability/nonce-protected Owner action executes the exact current `Preview_Service` checks and may persist qualification only if both Latest and Weekly Popular succeed with non-empty valid results. Failed, partial, ambiguous, zero-item, unavailable, or state-write-failed qualification does not admit writes.
+
+While the exact current contract is unqualified:
+
+- Manual/Cron refresh is blocked before remote acquisition and before snapshot/attempt/run-summary mutation;
+- existing LKG snapshots and public local rendering remain available;
+- no new recurring event is scheduled;
+- any stale recurring event left by a previous contract is cleared by schedule self-healing;
+- the Cron callback independently fails closed even if a stale event is invoked before cleanup.
 
 That gate was historically executed successfully by the Owner using the merged v0.1.0 plugin:
 
@@ -169,13 +187,13 @@ That gate was historically executed successfully by the Owner using the merged v
 - Weekly Popular: PASS, 16 valid records, HTTP 200;
 - WordPress version visibly observed on the real host: 7.1.2.
 
-That historical execution used the then-current `/Article/Days` Latest parser. It qualified the observed runtime path for that exact source/parser execution; it does **not** automatically qualify the later Owner-approved v0.4.0 semantic change that binds Latest to the homepage `تازه‌ها` tab/list.
+That historical execution used the then-current `/Article/Days` Latest parser. It qualified the observed runtime path for that exact historical source/parser execution; it does **not** qualify `kanoon-homepage-semantic-lists-v1`.
 
 After merged PR #4, the Owner installed plugin v0.2.1 and downloaded the real-host diagnostic JSON. That artifact observed WordPress 7.1.2, PHP 8.3.33, `event_registered=true`, daily recurrence, `cron_execution_observed=true`, a Cron-origin `overall_status=success`, Latest local_count=20, Weekly Popular local_count=16, and `observability_incomplete=false`. Therefore one real chain from WP-Cron through acquisition, validation, independent local persistence, and diagnostic persistence is proven for that historical execution.
 
 The Owner subsequently installed v0.3.0, placed `[ksh_kanoon_articles]` on a real KSH page, and supplied desktop/mobile captures. Those captures showed both lists rendering, the intended two-column desktop composition, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. v0.3.1 removed repeated public Latest date lines and equal-height Grid stretching while preserving the underlying stored metadata and local-only architecture.
 
-These runtime observations do not guarantee future Cron firing, future Kanoon DOM/network stability, or the new homepage-Latest semantic binding. Real-host/browser acceptance of the v0.4.0 refinement remains open until the Owner installs/tests that build.
+These runtime observations do not guarantee future Cron firing, future Kanoon DOM/network stability, or the new homepage-Latest semantic binding. Real-host qualification of `kanoon-homepage-semantic-lists-v1` remains **NOT_PROVEN** until the Owner executes the repaired v0.4.0 qualification action successfully on KSH.
 
 ---
 
@@ -200,7 +218,7 @@ Current platform decision: **WordPress**.
 
 The Kanoon article-list responsibility lives as a **small site-specific WordPress plugin-level component**, independent enough from presentation that source parsing/refresh can be maintained without coupling visitor UI to remote availability.
 
-Current plugin implementation includes read-only Preview, independent local last-known-good snapshots, bounded per-list attempt state, explicit Manual/Cron refresh attribution through one canonical refresh service, one approximately-daily native WP-Cron path, separate latest Manual/Cron run summaries, and a one-click read-only JSON diagnostic export from the existing Tools page.
+Current plugin implementation includes read-only Preview, a separate current-contract qualification Owner action, one bounded qualification record tied to the explicit acquisition-contract identity, independent local last-known-good snapshots, bounded per-list attempt state, qualification-gated Manual/Cron refresh attribution through one canonical refresh service, one qualified approximately-daily native WP-Cron path with stale-event cleanup and callback admission, separate latest Manual/Cron run summaries, and a one-click read-only JSON diagnostic export from the existing Tools page.
 
 The public presentation layer is implemented as a reusable local-snapshot renderer plus the standard `[ksh_kanoon_articles]` shortcode. It reads only `Snapshot_Store::get_snapshot()`, never triggers acquisition/refresh, fails softly when one or both lists are unavailable, and uses one small fully scoped responsive RTL stylesheet. Stored `date_context` remains validated snapshot/diagnostic metadata but is not emitted in public item markup. The renderer displays at most 15 links per list without mutating/truncating the underlying snapshot. The desktop grid keeps two columns while aligning panels to the start so each panel retains its natural content height; mobile remains a single-column stack. There is no Elementor-specific or Gutenberg-specific business/data implementation.
 
@@ -272,24 +290,29 @@ As implementation evolves, extend this same canonical verification path with app
 - Latest + Weekly Popular scope;
 - Latest semantic source is the homepage `تازه‌ها` target, not `/Article/Days`;
 - public display is capped at 15 links per list while valid stored lists may be longer;
-- approximately daily/nightly background refresh;
+- approximately daily/nightly background refresh after exact-contract qualification;
 - independent local last-known-good snapshot semantics;
 - no visitor-time remote dependency;
 - small custom WordPress extractor family;
-- real-host read-only Preview gate before writes/scheduling;
-- historical Owner-executed real-host Preview PASS for the then-current Latest/Weekly parser paths;
+- exact acquisition-contract qualification admission before writes/scheduling;
+- current acquisition-contract identity `kanoon-homepage-semantic-lists-v1` is independent from plugin version;
+- historical Owner-executed real-host Preview PASS for the then-current Latest/Weekly parser paths does not qualify the current identity;
 - historical Owner-observed real-host v0.2.1 Cron execution on WordPress 7.1.2 / PHP 8.3.33 with `overall_status=success`, Latest local_count=20, Weekly local_count=16, and complete persisted observability;
 - historical Owner-observed real-host v0.3.0 shortcode placement/rendering on desktop and mobile, including both lists and responsive stacking;
 - KSH typography inherits site font-family ownership; the exact `rezahh107/Vazir` companion owns self-hosted `Vazirmatn` delivery when enabled.
 
 ### Implemented backend/runtime stage
 
-- read-only Preview/Test Connection;
+- read-only Preview/Test Connection that never silently mutates qualification state;
+- separate protected Owner qualification action using the exact current Preview service;
+- bounded non-autoloaded current-contract qualification state with persistence readback;
+- fail-closed Manual/Cron refresh admission before acquisition and all snapshot/attempt/run-summary mutation;
 - independent validated per-list snapshot storage using WordPress Options;
 - bounded per-list latest-attempt status with explicit origin/run identity for new attempts and legacy `unknown` compatibility;
-- explicit Manual and scheduled Cron entry paths that reuse the same canonical acquisition/validation/persistence implementation;
+- explicit Manual and scheduled Cron entry paths that reuse the same canonical acquisition/validation/persistence implementation after qualification;
 - separate non-autoloaded latest Manual and latest Cron run summaries, without unbounded history;
-- one native daily WP-Cron hook with upgrade-safe schedule existence repair;
+- one native daily WP-Cron hook only for a qualified current contract, with upgrade-safe stale-event cleanup;
+- independent Cron callback qualification guard preventing a stale registered event from bypassing admission;
 - one-click authenticated JSON diagnostic download containing only bounded plugin-owned/public metadata and safe WordPress/PHP runtime facts;
 - deterministic separation between schedule registration and persisted Cron execution evidence;
 - deactivation unscheduling without deleting valid snapshots or diagnostic run summaries;
@@ -314,31 +337,35 @@ As implementation evolves, extend this same canonical verification path with app
 ### Still NOT_PROVEN
 
 - future Kanoon DOM/network stability;
-- real-host execution of the v0.4.0 homepage `تازه‌ها` parser through the KSH WordPress HTTP path;
+- real-host successful qualification of `kanoon-homepage-semantic-lists-v1` through the repaired v0.4.0 Owner action on KSH;
+- real-host writable Manual/Cron execution for the v0.4.0 contract after that qualification;
 - every future WP-Cron execution after the historical observed v0.2.1 run;
 - real-host/browser visual acceptance of v0.4.0 at representative desktop/mobile widths, including actual `Vazirmatn` resolution when the companion typography plugin is active;
 - production deployment procedure beyond the Owner's normal plugin installation/content-placement path.
 
-Repository tests may prove exercised deterministic behavior, but they must not be used to upgrade these remaining runtime/browser facts.
+Repository tests may prove exercised deterministic behavior and admission enforcement, but they must not be used to upgrade these remaining runtime/browser facts.
 
 ---
 
 ## 12. Near-term implementation sequence
 
-The architecture has historical real-host Preview/Cron/rendering evidence, while the v0.4.0 semantic-source/count/typography change requires its own bounded Owner validation after merge/install.
+The architecture has historical real-host Preview/Cron/rendering evidence, while the v0.4.0 acquisition contract requires its own bounded Owner qualification after merge/install before writable refresh is admitted.
 
 After the v0.4.0 refinement PR is merged, the safest real-host validation is:
 
 1. install/update plugin v0.4.0 through the Owner's normal WordPress path;
-2. keep the existing `[ksh_kanoon_articles]` placement in place;
-3. run the read-only Preview and verify Latest resolves the homepage `تازه‌ها` semantic list and Weekly Popular still resolves independently;
-4. perform the normal bounded refresh and confirm both local snapshots/attempt statuses remain coherent;
-5. load the real page and verify visitor rendering does not trigger acquisition;
-6. confirm each public list displays at most 15 links while diagnostic/local counts may legitimately be greater;
-7. capture representative desktop (~1440 px) and mobile (~390 px) widths;
-8. confirm desktop panels retain natural heights, mobile stacks to one column, titles remain readable, and there is no horizontal scrolling;
-9. with `rezahh107/Vazir` frontend typography enabled, confirm article text resolves to the site-delivered `Vazirmatn` family; disablement/absence must not break module readability/function;
-10. download the diagnostic JSON again and verify full stored snapshot metadata, Cron state, and observability remain intact.
+2. keep the existing LKG snapshots and `[ksh_kanoon_articles]` placement in place;
+3. run the read-only Preview and verify Latest resolves the homepage `تازه‌ها` semantic list and Weekly Popular still resolves independently; Preview alone must leave the current contract unqualified;
+4. use the protected **تأیید دریافت مقاله‌های کانون** Owner action and require successful persisted qualification for `kanoon-homepage-semantic-lists-v1`;
+5. only after step 4 succeeds, confirm the daily event is admitted and perform the bounded Manual Refresh; verify both local snapshots/attempt statuses remain coherent;
+6. load the real page and verify visitor rendering does not trigger acquisition;
+7. confirm each public list displays at most 15 links while diagnostic/local counts may legitimately be greater;
+8. capture representative desktop (~1440 px) and mobile (~390 px) widths;
+9. confirm desktop panels retain natural heights, mobile stacks to one column, titles remain readable, and there is no horizontal scrolling;
+10. with `rezahh107/Vazir` frontend typography enabled, confirm article text resolves to the site-delivered `Vazirmatn` family; disablement/absence must not break module readability/function;
+11. download the diagnostic JSON again and verify full stored snapshot metadata, Cron state, and observability remain intact.
+
+Until the exact current-contract qualification in step 4 succeeds on KSH, Manual/Cron writable acquisition remains intentionally blocked and real-host v0.4.0 qualification remains `NOT_PROVEN`.
 
 The diagnostic download remains the preferred bounded support artifact and must stay read-only. Future source compatibility and future Cron runs remain operational evidence questions, not assumptions.
 
