@@ -30,13 +30,16 @@ Do not let generated mockup copy, placeholder text, or visual artifacts override
 - WordPress is the target platform.
 - The public UI is Persian RTL and responsive.
 - Kanoon article integration is metadata/link mirroring only; article bodies and media are not copied.
-- The target lists are approximately 20 Latest items and Kanoon's own Weekly Popular ordering.
+- `تازه‌ها / Latest` means the semantic `تازه‌ها` tab/list on `https://www.kanoon.ir/`; `/Article/Days` is not a fallback source for that public meaning.
+- `پربازدید هفته / Weekly Popular` remains Kanoon's homepage semantic list and preserves Kanoon's own ordering.
+- Local snapshots may preserve the complete valid owned lists; public rendering shows at most the first 15 links per list.
 - Normal visitor requests must not depend on a live request to `kanoon.ir`.
 - Refresh may be approximately daily/nightly after qualification.
 - Failed refreshes must preserve the previous last-known-good snapshot.
 - The selected article acquisition family is a small site-specific WordPress extractor using WordPress Core HTTP APIs and local snapshot storage.
-- The real-host read-only Preview/qualification gate must precede writes/scheduling; that gate has now passed for the observed Owner execution.
-- Stored `date_context` remains backend/diagnostic metadata and is not part of the current public article-item presentation.
+- The historical real-host read-only Preview/qualification gate passed for the then-current v0.1.0 source/parser path; the later homepage-Latest semantic change needs its own current-source/runtime evidence and must not inherit that proof automatically.
+- Stored `date_context` remains backend/diagnostic metadata and is not part of the current public article-item presentation; homepage Latest may store an empty date when no reliable bounded article date exists.
+- Font-family/asset delivery is not owned by KSH Kanoon Articles. The module inherits site typography; the exact Owner companion `rezahh107/Vazir` owns self-hosted `Vazirmatn` delivery when enabled.
 
 See `docs/decisions/ADR-001-kanoon-article-list-mirror.md` for the complete contract.
 
@@ -49,8 +52,8 @@ The bounded plugin implementation lives at:
 Current plugin capability includes:
 
 - the explicit read-only wp-admin Preview/Test Connection under Tools;
-- Owner-observed real-host Preview success for Latest (20 records / HTTP 200) and Weekly Popular (16 records / HTTP 200);
-- Owner-observed real-host v0.2.1 Cron execution with `overall_status=success`, Latest local_count=20, Weekly local_count=16, and complete persisted observability on WordPress 7.1.2 / PHP 8.3.33;
+- historical Owner-observed real-host Preview success for the v0.1.0 source/parser path (Latest 20 records / HTTP 200 and Weekly Popular 16 records / HTTP 200);
+- historical Owner-observed real-host v0.2.1 Cron execution with `overall_status=success`, Latest local_count=20, Weekly local_count=16, and complete persisted observability on WordPress 7.1.2 / PHP 8.3.33;
 - independent non-autoloaded local snapshots and bounded per-list attempt state;
 - one canonical refresh service with explicit `manual` / `cron` origin at its production entry points;
 - separate non-autoloaded latest Manual/Cron run summaries plus bounded run identity;
@@ -58,18 +61,20 @@ Current plugin capability includes:
 - one-click authenticated **دانلود گزارش JSON** support bundle from the existing Tools page;
 - deactivation unscheduling without snapshot deletion;
 - a public local-only renderer plus the builder/theme-agnostic `[ksh_kanoon_articles]` shortcode, with scoped responsive RTL presentation;
-- Owner-observed real-host v0.3.0 shortcode rendering on desktop/mobile; v0.3.1 removes public per-item date metadata and default Grid equal-height stretching while preserving stored metadata and all article items.
+- Owner-observed real-host v0.3.0 shortcode rendering on desktop/mobile; v0.3.1 removed public per-item date metadata and default Grid equal-height stretching;
+- the v0.4.0 refinement changes Latest acquisition to the homepage semantic tab/target, keeps complete valid snapshots while capping public output at 15 per list, and tightens component typography while inheriting the site's font family. Real-host acceptance of v0.4.0 remains separate evidence.
 
 Important boundaries:
 
-- opening the admin page, plugin activation, and JSON report generation/download must not contact `kanoon.ir`;
+- opening the admin page, plugin activation, public rendering, and JSON report generation/download must not contact `kanoon.ir`;
 - remote acquisition runs only on explicit Preview, explicit Manual Refresh, or the due scheduled refresh callback;
 - `wp_next_scheduled()` / schedule registration never proves the Cron callback executed;
 - actual Cron execution is considered observed only from persisted `cron`-origin run evidence written by the scheduled callback path;
-- Latest and Weekly Popular remain independently validatable and replaceable;
+- Latest and Weekly Popular remain independently validatable and replaceable even though both currently acquire the homepage URL;
+- the 15-item public limit is presentation-only and must not truncate otherwise valid persisted list data;
 - repository/stub tests prove exercised renderer, attribution, persistence, scheduling, and export logic but do not guarantee future WP-Cron firing on the KSH host;
-- the observed real-host Preview and Cron run qualify those exact runtime executions;
-- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution, while final visual acceptance of the v0.3.1 refinement and future source/runtime behavior remain separate evidence boundaries.
+- historical Preview/Cron observations qualify only the exact runtime/source behavior they executed;
+- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; v0.4.0 real-host/browser acceptance remains pending Owner installation/testing.
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
@@ -105,7 +110,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It covers foundation/design integrity, deterministic validation of the retained historical Elementor homepage artifact, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The Owner's downloaded v0.2.1 diagnostic has already proven one real Cron-origin execution; repository tests still cannot guarantee future Cron runs or prove final manually built page behavior. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It covers foundation/design integrity, deterministic validation of the retained historical Elementor homepage artifact, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The historical v0.2.1 diagnostic proved one real Cron-origin execution; repository tests still cannot guarantee future Cron runs, future Kanoon DOM compatibility, or real-page behavior. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
