@@ -16,13 +16,23 @@ final class Qualification_Admin_Page {
 	const MENU_SLUG  = 'ksh-kanoon-articles-qualification';
 	const NONCE      = 'ksh_kanoon_articles_qualification';
 
-	/** @var Acquisition_Qualification */
+	/**
+	 * Acquisition-contract qualification owner.
+	 *
+	 * @var Acquisition_Qualification
+	 */
 	private $qualification;
 
-	/** @var Scheduler */
+	/**
+	 * Native schedule owner.
+	 *
+	 * @var Scheduler
+	 */
 	private $scheduler;
 
 	/**
+	 * Build the explicit qualification admin surface.
+	 *
 	 * @param Acquisition_Qualification $qualification Qualification owner.
 	 * @param Scheduler                 $scheduler     Schedule owner.
 	 */
@@ -68,18 +78,18 @@ final class Qualification_Admin_Page {
 			}
 		}
 
-		$state      = $this->qualification->state();
-		$qualified  = $this->qualification->is_qualified();
-		$contract   = $this->qualification->current_contract_id();
-		$stored_id  = is_array( $state ) && isset( $state['contract_id'] ) ? (string) $state['contract_id'] : '';
-		$stored_at  = is_array( $state ) && isset( $state['qualified_at'] ) ? (string) $state['qualified_at'] : '';
+		$state     = $this->qualification->state();
+		$qualified = $this->qualification->is_qualified();
+		$contract  = $this->qualification->current_contract_id();
+		$stored_id = is_array( $state ) && isset( $state['contract_id'] ) ? (string) $state['contract_id'] : '';
+		$stored_at = is_array( $state ) && isset( $state['qualified_at'] ) ? (string) $state['qualified_at'] : '';
 		?>
 		<div class="wrap" dir="rtl">
 			<h1><?php echo esc_html__( 'تأیید قرارداد دریافت مقاله‌های کانون', 'ksh-kanoon-articles' ); ?></h1>
 			<p><?php echo esc_html__( 'این اقدام، همان acquisition/parsing مورد استفاده در Preview را روی قرارداد فعلی اجرا می‌کند. فقط اگر هر دو فهرست کاملاً موفق و غیرخالی باشند، یک وضعیت تأیید نسخه‌دار ثبت می‌شود و Refresh دستی/زمان‌بندی‌شده برای همان قرارداد مجاز خواهد شد.', 'ksh-kanoon-articles' ); ?></p>
 			<p><?php echo esc_html__( 'Preview عادی همچنان read-only است و این صفحه Snapshot مقاله، attempt یا run-summary را مستقیماً تغییر نمی‌دهد.', 'ksh-kanoon-articles' ); ?></p>
 
-			<table class="widefat striped" style="max-width: 900px;">
+			<table class="widefat striped">
 				<tbody>
 					<tr>
 						<th scope="row"><?php echo esc_html__( 'قرارداد فعلی', 'ksh-kanoon-articles' ); ?></th>
