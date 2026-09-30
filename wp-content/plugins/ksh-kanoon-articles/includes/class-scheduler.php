@@ -14,25 +14,53 @@ final class Scheduler {
 
 	const HOOK = 'ksh_kanoon_articles_daily_refresh';
 
-	/** @var callable */
+	/**
+	 * Next-event lookup.
+	 *
+	 * @var callable
+	 */
 	private $next_scheduled;
 
-	/** @var callable */
+	/**
+	 * Recurring-event scheduler.
+	 *
+	 * @var callable
+	 */
 	private $schedule_event;
 
-	/** @var callable */
+	/**
+	 * Event remover.
+	 *
+	 * @var callable
+	 */
 	private $clear_scheduled_hook;
 
-	/** @var callable */
+	/**
+	 * Current Unix timestamp producer.
+	 *
+	 * @var callable
+	 */
 	private $now;
 
-	/** @var callable */
+	/**
+	 * Recurrence lookup.
+	 *
+	 * @var callable
+	 */
 	private $get_schedule;
 
-	/** @var Refresh_Service|null */
+	/**
+	 * Canonical refresh service registered for the owned Cron callback.
+	 *
+	 * @var Refresh_Service|null
+	 */
 	private $refresh;
 
-	/** @var Acquisition_Qualification */
+	/**
+	 * Current acquisition-contract qualification admission.
+	 *
+	 * @var Acquisition_Qualification
+	 */
 	private $qualification;
 
 	/**
