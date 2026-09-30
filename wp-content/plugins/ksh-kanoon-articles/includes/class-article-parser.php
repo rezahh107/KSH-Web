@@ -9,18 +9,15 @@ namespace KSH\KanoonArticles;
 
 use DOMDocument;
 use DOMElement;
-use DOMNode;
 use DOMXPath;
 
 /**
- * Parses the two bounded Kanoon list shapes without WordPress state.
+ * Parses the two bounded Kanoon homepage list shapes without WordPress state.
  */
 final class Article_Parser {
 
-	const LATEST_LIMIT = 20;
-
 	/**
-	 * Parse Latest from the approved /Article/Days document.
+	 * Parse Latest by binding the semantic homepage tab label to its fragment target.
 	 *
 	 * @param string $html Source HTML.
 	 * @return array<string,mixed>
@@ -31,63 +28,47 @@ final class Article_Parser {
 			return $this->result( 'latest', 'failure', array(), '', $document['reason'] );
 		}
 
-		$xpath        = new DOMXPath( $document );
-		$date_heading = $this->find_latest_date_heading( $xpath );
-		if ( ! $date_heading ) {
-			return $this->result( 'latest', 'failure', array(), '', 'latest_date_boundary_missing' );
+		$xpath         = new DOMXPath( $document );
+		$latest_links  = $this->find_exact_text_anchors( $xpath, array( 'تازه ها', 'تازه‌ها' ) );
+		$weekly_links  = $this->find_exact_text_anchors( $xpath, array( 'پربازدید هفته' ) );
+		$monthly_links = $this->find_exact_text_anchors( $xpath, array( 'پربازدید ماه' ) );
+
+		if ( 1 !== count( $latest_links ) ) {
+			return $this->result( 'latest', 'ambiguous', array(), '', 'latest_tab_label_not_unique' );
 		}
 
-		$date_context         = $this->latest_date_context_from_heading( $date_heading );
-		$current_date_context = $date_context;
-		$items                = array();
-		$seen                 = array();
-		$node                 = $date_heading;
+		$latest_id = $this->fragment_id( $latest_links[0] );
+		if ( '' === $latest_id ) {
+			return $this->result( 'latest', 'ambiguous', array(), '', 'latest_tab_target_missing' );
+		}
 
-		$node = $this->next_node( $node );
-		while ( $node ) {
-			$current = $node;
-			$node    = $this->next_node( $node );
+		$latest_target = $this->target_by_id( $xpath, $latest_id );
+		if ( ! $latest_target ) {
+			return $this->result( 'latest', 'ambiguous', array(), '', 'latest_tab_target_missing' );
+		}
 
-			if ( $this->is_sidebar_boundary( $current ) ) {
-				break;
-			}
-
-			$next_date_context = $this->latest_date_context_from_heading( $current );
-			if ( '' !== $next_date_context ) {
-				$current_date_context = $next_date_context;
+		// When the sibling semantic tabs are uniquely resolvable, their target must
+		// stay distinct from Latest. Their absence/ambiguity does not couple an
+		// otherwise valid Latest list to Weekly/Monthly parsing success.
+		foreach ( array( $weekly_links, $monthly_links ) as $sibling_links ) {
+			if ( 1 !== count( $sibling_links ) ) {
 				continue;
 			}
 
-			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-			if ( ! $current instanceof DOMElement || 'a' !== strtolower( $current->tagName ) ) {
-				continue;
-			}
-
-			$item = $this->normalize_article_anchor( $current, 'latest', $current_date_context );
-			if ( ! $item || isset( $seen[ $item['url'] ] ) ) {
-				continue;
-			}
-
-			$seen[ $item['url'] ] = true;
-			$items[]              = $item;
-
-			if ( self::LATEST_LIMIT === count( $items ) ) {
-				break;
+			$sibling_id = $this->fragment_id( $sibling_links[0] );
+			if ( '' !== $sibling_id && $latest_id === $sibling_id ) {
+				return $this->result( 'latest', 'ambiguous', array(), '', 'latest_tab_target_collision' );
 			}
 		}
 
-		if ( 0 === count( $items ) ) {
-			return $this->result( 'latest', 'failure', array(), $date_context, 'latest_zero_valid_items' );
-		}
-
-		return $this->result( 'latest', 'success', $items, $date_context, '' );
+		return $this->parse_target_items( $xpath, $latest_target, 'latest', 'latest_anchor_query_failed', 'latest_zero_valid_items' );
 	}
 
 	/**
 	 * Parse Weekly Popular by binding semantic tab label to its fragment target.
 	 *
-	 * Monthly Popular is required as an independently resolvable sibling boundary so the
-	 * parser cannot silently treat the nearby monthly list as Weekly Popular.
+	 * Monthly Popular remains a required independently resolvable sibling boundary
+	 * so the parser cannot silently treat the nearby monthly list as Weekly Popular.
 	 *
 	 * @param string $html Source HTML.
 	 * @return array<string,mixed>
@@ -99,8 +80,8 @@ final class Article_Parser {
 		}
 
 		$xpath         = new DOMXPath( $document );
-		$weekly_links  = $this->find_exact_text_anchors( $xpath, 'پربازدید هفته' );
-		$monthly_links = $this->find_exact_text_anchors( $xpath, 'پربازدید ماه' );
+		$weekly_links  = $this->find_exact_text_anchors( $xpath, array( 'پربازدید هفته' ) );
+		$monthly_links = $this->find_exact_text_anchors( $xpath, array( 'پربازدید ماه' ) );
 
 		if ( 1 !== count( $weekly_links ) || 1 !== count( $monthly_links ) ) {
 			return $this->result( 'weekly_popular', 'ambiguous', array(), '', 'popular_tab_labels_not_unique' );
@@ -124,12 +105,26 @@ final class Article_Parser {
 			return $this->result( 'weekly_popular', 'ambiguous', array(), '', 'popular_tab_target_missing' );
 		}
 
-		$anchors = $xpath->query( './/a[@href]', $weekly_target );
+		return $this->parse_target_items( $xpath, $weekly_target, 'weekly_popular', 'weekly_anchor_query_failed', 'weekly_zero_valid_items' );
+	}
+
+	/**
+	 * Extract canonical article anchors from one already-resolved semantic target.
+	 *
+	 * @param DOMXPath   $xpath        XPath instance.
+	 * @param DOMElement $target       Semantic target container.
+	 * @param string     $source       List identity.
+	 * @param string     $query_reason Failure reason for XPath query failure.
+	 * @param string     $zero_reason  Failure reason for zero valid articles.
+	 * @return array<string,mixed>
+	 */
+	private function parse_target_items( DOMXPath $xpath, DOMElement $target, $source, $query_reason, $zero_reason ) {
+		$anchors = $xpath->query( './/a[@href]', $target );
 		$items   = array();
 		$seen    = array();
 
 		if ( false === $anchors ) {
-			return $this->result( 'weekly_popular', 'failure', array(), '', 'weekly_anchor_query_failed' );
+			return $this->result( $source, 'failure', array(), '', $query_reason );
 		}
 
 		foreach ( $anchors as $anchor ) {
@@ -137,7 +132,7 @@ final class Article_Parser {
 				continue;
 			}
 
-			$item = $this->normalize_article_anchor( $anchor, 'weekly_popular', '' );
+			$item = $this->normalize_article_anchor( $anchor, $source, '' );
 			if ( ! $item || isset( $seen[ $item['url'] ] ) ) {
 				continue;
 			}
@@ -147,10 +142,10 @@ final class Article_Parser {
 		}
 
 		if ( 0 === count( $items ) ) {
-			return $this->result( 'weekly_popular', 'failure', array(), '', 'weekly_zero_valid_items' );
+			return $this->result( $source, 'failure', array(), '', $zero_reason );
 		}
 
-		return $this->result( 'weekly_popular', 'success', $items, '', '' );
+		return $this->result( $source, 'success', $items, '', '' );
 	}
 
 	/**
@@ -221,7 +216,7 @@ final class Article_Parser {
 	}
 
 	/**
-	 * Remove bounded relative-time/view metadata currently carried inside Latest links.
+	 * Remove bounded relative-time/view metadata when carried inside an article link.
 	 *
 	 * @param string $raw_title Anchor text.
 	 * @return string
@@ -240,84 +235,13 @@ final class Article_Parser {
 	}
 
 	/**
-	 * Find one Latest page date heading.
+	 * Find anchors matching one of the exact normalized semantic labels.
 	 *
-	 * @param DOMXPath $xpath XPath instance.
-	 * @return DOMElement|null
-	 */
-	private function find_latest_date_heading( DOMXPath $xpath ) {
-		$headings = $xpath->query( '//h1|//h2|//h3|//h4' );
-		if ( false === $headings ) {
-			return null;
-		}
-
-		foreach ( $headings as $heading ) {
-			if ( '' !== $this->latest_date_context_from_heading( $heading ) ) {
-				return $heading;
-			}
-		}
-
-		return null;
-	}
-
-	/**
-	 * Resolve date context only from a valid Latest Persian date heading.
-	 *
-	 * @param DOMNode $node Candidate node.
-	 * @return string
-	 */
-	private function latest_date_context_from_heading( DOMNode $node ) {
-		if ( ! $node instanceof DOMElement ) {
-			return '';
-		}
-
-		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-		$tag = strtolower( $node->tagName );
-		if ( ! in_array( $tag, array( 'h1', 'h2', 'h3', 'h4' ), true ) ) {
-			return '';
-		}
-
-		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-		$text            = $this->normalize_text( $node->textContent );
-		$weekday_pattern = '(?:شنبه|یکشنبه|دوشنبه|سه\s*شنبه|چهارشنبه|پنج\s*شنبه|جمعه)';
-		$digit           = '0-9۰-۹٠-٩';
-		$month_pattern   = '(?:فروردین|اردیبهشت|خرداد|تیر|مرداد|شهریور|مهر|آبان|آذر|دی|بهمن|اسفند)';
-		$pattern         = '/^' . $weekday_pattern . '\s+[' . $digit . ']{1,2}\s+' . $month_pattern . '\s+[' . $digit . ']{4}$/u';
-
-		return 1 === preg_match( $pattern, $text ) ? $text : '';
-	}
-
-	/**
-	 * Determine whether traversal reached a known sidebar list boundary.
-	 *
-	 * @param DOMNode $node Current node.
-	 * @return bool
-	 */
-	private function is_sidebar_boundary( DOMNode $node ) {
-		if ( ! $node instanceof DOMElement ) {
-			return false;
-		}
-
-		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-		$tag = strtolower( $node->tagName );
-		if ( ! in_array( $tag, array( 'h1', 'h2', 'h3', 'h4' ), true ) ) {
-			return false;
-		}
-
-		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-		$text = $this->normalize_text( $node->textContent );
-
-		return in_array( $text, array( 'پربازدیدهای ماه', 'پربازدید ماه', 'تازه ها', 'تازه‌ها' ), true );
-	}
-
-	/**
-	 * Find anchors with exact normalized label text.
-	 *
-	 * @param DOMXPath $xpath XPath instance.
-	 * @param string   $text  Expected label.
+	 * @param DOMXPath          $xpath XPath instance.
+	 * @param array<int,string> $texts Accepted exact labels.
 	 * @return array<int,DOMElement>
 	 */
-	private function find_exact_text_anchors( DOMXPath $xpath, $text ) {
+	private function find_exact_text_anchors( DOMXPath $xpath, $texts ) {
 		$anchors = $xpath->query( '//a[@href]' );
 		$matches = array();
 
@@ -326,8 +250,13 @@ final class Article_Parser {
 		}
 
 		foreach ( $anchors as $anchor ) {
+			if ( ! $anchor instanceof DOMElement ) {
+				continue;
+			}
+
 			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-			if ( $anchor instanceof DOMElement && $text === $this->normalize_text( $anchor->textContent ) ) {
+			$text = $this->normalize_text( $anchor->textContent );
+			if ( in_array( $text, $texts, true ) ) {
 				$matches[] = $anchor;
 			}
 		}
@@ -394,32 +323,6 @@ final class Article_Parser {
 		}
 
 		return $document;
-	}
-
-	/**
-	 * Document-order traversal starting after a node.
-	 *
-	 * @param DOMNode $node Current node.
-	 * @return DOMNode|null
-	 */
-	private function next_node( DOMNode $node ) {
-		// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-		if ( $node->firstChild ) {
-			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-			return $node->firstChild;
-		}
-
-		while ( $node ) {
-			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-			if ( $node->nextSibling ) {
-				// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-				return $node->nextSibling;
-			}
-			// phpcs:ignore WordPress.NamingConventions.ValidVariableName.UsedPropertyNotSnakeCase -- Native DOM property.
-			$node = $node->parentNode;
-		}
-
-		return null;
 	}
 
 	/**
