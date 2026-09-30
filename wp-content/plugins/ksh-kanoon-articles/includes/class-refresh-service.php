@@ -71,13 +71,13 @@ final class Refresh_Service {
 	/**
 	 * Acquire, validate, and independently persist both lists.
 	 *
-	 * Production Manual/Cron callers are admitted only when the exact current
-	 * acquisition contract has a valid real-host qualification record. The guard
-	 * runs before Preview/acquisition and before any snapshot/attempt/run-summary
-	 * mutation, so stale historical qualification cannot execute the new contract.
+	 * No canonical refresh caller is admitted until the exact current acquisition
+	 * contract has a valid qualification record. The guard runs before Preview/
+	 * acquisition and before any snapshot/attempt/run-summary mutation, so neither
+	 * stale historical qualification nor an alternate/legacy trigger can bypass it.
 	 *
-	 * Unknown is retained only for legacy/unattributed compatibility and is not
-	 * a production Manual/Cron entrypoint.
+	 * Unknown origin remains readable for legacy attribution compatibility after
+	 * admission, but it receives no qualification exemption.
 	 *
 	 * @param string $trigger Refresh origin.
 	 * @return array<string,mixed>
@@ -85,7 +85,7 @@ final class Refresh_Service {
 	public function run( $trigger = 'unknown' ) {
 		$trigger = $this->normalize_trigger( $trigger );
 
-		if ( in_array( $trigger, array( 'manual', 'cron' ), true ) && ! $this->qualification->is_qualified() ) {
+		if ( ! $this->qualification->is_qualified() ) {
 			return $this->blocked_result( $trigger );
 		}
 
@@ -146,9 +146,9 @@ final class Refresh_Service {
 	}
 
 	/**
-	 * Build a truthful no-mutation outcome for an unqualified Manual/Cron call.
+	 * Build a truthful no-mutation outcome for any unqualified canonical refresh call.
 	 *
-	 * @param string $trigger Explicit blocked origin.
+	 * @param string $trigger Blocked normalized origin.
 	 * @return array<string,mixed>
 	 */
 	private function blocked_result( $trigger ) {
@@ -175,7 +175,7 @@ final class Refresh_Service {
 	 * Project existing LKG state without writing blocked-attempt evidence.
 	 *
 	 * @param string $source  List identity.
-	 * @param string $trigger Blocked explicit origin.
+	 * @param string $trigger Blocked normalized origin.
 	 * @return array<string,mixed>
 	 */
 	private function blocked_list_outcome( $source, $trigger ) {
