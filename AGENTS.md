@@ -34,10 +34,11 @@ Do not let generated mockup copy, placeholder text, or visual artifacts override
 - `پربازدید هفته / Weekly Popular` remains Kanoon's homepage semantic list and preserves Kanoon's own ordering.
 - Local snapshots may preserve the complete valid owned lists; public rendering shows at most the first 15 links per list.
 - Normal visitor requests must not depend on a live request to `kanoon.ir`.
-- Refresh may be approximately daily/nightly after qualification.
+- Refresh may be approximately daily/nightly only after the exact current acquisition contract is qualified.
 - Failed refreshes must preserve the previous last-known-good snapshot.
 - The selected article acquisition family is a small site-specific WordPress extractor using WordPress Core HTTP APIs and local snapshot storage.
-- The historical real-host read-only Preview/qualification gate passed for the then-current v0.1.0 source/parser path; the later homepage-Latest semantic change needs its own current-source/runtime evidence and must not inherit that proof automatically.
+- Acquisition qualification is a runtime admission rule, not documentation-only sequencing. The exact current source/parser contract has an explicit identity independent from the plugin version; historical qualification from another identity must not authorize it.
+- Ordinary Preview remains read-only. A separate protected Owner action may record successful qualification only after the exact current Preview checks pass for both lists.
 - Stored `date_context` remains backend/diagnostic metadata and is not part of the current public article-item presentation; homepage Latest may store an empty date when no reliable bounded article date exists.
 - Font-family/asset delivery is not owned by KSH Kanoon Articles. The module inherits site typography; the exact Owner companion `rezahh107/Vazir` owns self-hosted `Vazirmatn` delivery when enabled.
 
@@ -52,29 +53,33 @@ The bounded plugin implementation lives at:
 Current plugin capability includes:
 
 - the explicit read-only wp-admin Preview/Test Connection under Tools;
+- a separate capability/nonce-protected Tools action that executes the exact current Preview checks and records one bounded qualification state for the explicit acquisition-contract identity only after both lists succeed;
 - historical Owner-observed real-host Preview success for the v0.1.0 source/parser path (Latest 20 records / HTTP 200 and Weekly Popular 16 records / HTTP 200);
 - historical Owner-observed real-host v0.2.1 Cron execution with `overall_status=success`, Latest local_count=20, Weekly local_count=16, and complete persisted observability on WordPress 7.1.2 / PHP 8.3.33;
 - independent non-autoloaded local snapshots and bounded per-list attempt state;
-- one canonical refresh service with explicit `manual` / `cron` origin at its production entry points;
+- one canonical refresh service with explicit `manual` / `cron` origin at its production entry points and fail-closed current-contract qualification admission before acquisition or mutation;
 - separate non-autoloaded latest Manual/Cron run summaries plus bounded run identity;
-- one daily native WP-Cron hook with cheap upgrade-safe schedule self-healing;
+- one daily native WP-Cron hook that exists only for a qualified current contract; upgrade-safe schedule self-healing clears a stale previous-contract event while unqualified;
+- an independent Cron callback admission guard so an already-registered stale event cannot bypass current-contract qualification;
 - one-click authenticated **دانلود گزارش JSON** support bundle from the existing Tools page;
 - deactivation unscheduling without snapshot deletion;
 - a public local-only renderer plus the builder/theme-agnostic `[ksh_kanoon_articles]` shortcode, with scoped responsive RTL presentation;
 - Owner-observed real-host v0.3.0 shortcode rendering on desktop/mobile; v0.3.1 removed public per-item date metadata and default Grid equal-height stretching;
-- the v0.4.0 refinement changes Latest acquisition to the homepage semantic tab/target, keeps complete valid snapshots while capping public output at 15 per list, and tightens component typography while inheriting the site's font family. Real-host acceptance of v0.4.0 remains separate evidence.
+- the v0.4.0 refinement changes Latest acquisition to the homepage semantic tab/target, keeps complete valid snapshots while capping public output at 15 per list, tightens component typography while inheriting the site's font family, and requires new exact-contract real-host qualification before Manual/Cron mutation is admitted.
 
 Important boundaries:
 
-- opening the admin page, plugin activation, public rendering, and JSON report generation/download must not contact `kanoon.ir`;
-- remote acquisition runs only on explicit Preview, explicit Manual Refresh, or the due scheduled refresh callback;
+- opening either admin page, plugin activation, public rendering, and JSON report generation/download must not contact `kanoon.ir`;
+- remote acquisition runs only on explicit read-only Preview, the explicit Owner qualification action, a qualified explicit Manual Refresh, or a qualified due scheduled refresh callback;
+- while the current acquisition contract is unqualified, Manual/Cron refresh is blocked before acquisition and before snapshot/attempt/run-summary writes; existing LKG snapshots and public local rendering remain available;
+- ordinary Preview never silently qualifies the contract;
 - `wp_next_scheduled()` / schedule registration never proves the Cron callback executed;
-- actual Cron execution is considered observed only from persisted `cron`-origin run evidence written by the scheduled callback path;
+- actual Cron execution is considered observed only from persisted `cron`-origin run evidence written by the qualified scheduled callback path;
 - Latest and Weekly Popular remain independently validatable and replaceable even though both currently acquire the homepage URL;
 - the 15-item public limit is presentation-only and must not truncate otherwise valid persisted list data;
-- repository/stub tests prove exercised renderer, attribution, persistence, scheduling, and export logic but do not guarantee future WP-Cron firing on the KSH host;
+- repository/stub tests prove exercised renderer, attribution, qualification admission, persistence, scheduling, and export logic but do not qualify the real KSH host;
 - historical Preview/Cron observations qualify only the exact runtime/source behavior they executed;
-- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; v0.4.0 real-host/browser acceptance remains pending Owner installation/testing.
+- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; v0.4.0 real-host acquisition-contract qualification remains `NOT_PROVEN` until the Owner executes the exact repaired build on KSH and the current-contract qualification action succeeds.
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
@@ -110,7 +115,7 @@ Canonical repository verification:
 bash scripts/verify-foundation.sh
 ```
 
-It covers foundation/design integrity, deterministic validation of the retained historical Elementor homepage artifact, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/diagnostic-export/frontend tests. The historical v0.2.1 diagnostic proved one real Cron-origin execution; repository tests still cannot guarantee future Cron runs, future Kanoon DOM compatibility, or real-page behavior. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
+It covers foundation/design integrity, deterministic validation of the retained historical Elementor homepage artifact, plus plugin source with PHP syntax, WPCS, and deterministic parser/orchestration/persistence/lifecycle/qualification/diagnostic-export/frontend tests. The historical v0.2.1 diagnostic proved one real Cron-origin execution; repository tests still cannot guarantee future Cron runs, future Kanoon DOM compatibility, or real-page behavior. `composer.json` is development tooling only; do not introduce a production Composer runtime dependency unless a future product capability genuinely requires one.
 
 Focused checks after dependency installation:
 
@@ -119,7 +124,7 @@ composer cs
 composer test
 ```
 
-Do not treat static/unit/fixture/stub success as proof of future WP-Cron execution, future live-source compatibility, or authentic real-page visual fidelity.
+Do not treat static/unit/fixture/stub success as proof of current-contract real-host qualification, future WP-Cron execution, future live-source compatibility, or authentic real-page visual fidelity.
 
 ## Change boundaries
 
