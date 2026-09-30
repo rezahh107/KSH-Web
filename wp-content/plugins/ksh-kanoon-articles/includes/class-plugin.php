@@ -12,7 +12,7 @@ namespace KSH\KanoonArticles;
  */
 final class Plugin {
 
-	const VERSION = '0.3.1';
+	const VERSION = '0.4.0';
 
 	/**
 	 * Bootstrap plugin hooks.
