@@ -2,7 +2,7 @@
 /**
  * Plugin Name: KSH Kanoon Articles
  * Description: Qualified Kanoon article metadata acquisition with independent local last-known-good refresh.
- * Version: 0.3.1
+ * Version: 0.4.0
  * Text Domain: ksh-kanoon-articles
  *
  * @package KSH_Kanoon_Articles
