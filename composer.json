@@ -15,6 +15,6 @@
   },
   "scripts": {
     "cs": "phpcs --standard=phpcs.xml.dist",
-    "test": "php tests/run.php"
+    "test": "php -d auto_prepend_file=tests/prequalified-bootstrap.php tests/run.php && php tests/qualification-regressions.php"
   }
 }
