@@ -115,26 +115,26 @@ function q_assert_true( $actual, string $message ): void {
 	q_assert_same( true, (bool) $actual, $message );
 }
 
-function q_homepage( int $latest_count = 2, int $weekly_count = 2, bool $weekly_collision = false, bool $latest_zero = false ): string {
-	$weekly_target = $weekly_collision ? 'shared' : 'weekly';
+function q_homepage( int $latest_count = 2, int $weekly_count = 2, bool $weekly_collision = false, bool $latest_zero = false, int $offset = 0 ): string {
+	$weekly_target  = $weekly_collision ? 'shared' : 'weekly';
 	$monthly_target = $weekly_collision ? 'shared' : 'monthly';
-	$html = '<html><body><a href="#latest">تازه ها</a><a href="#' . $weekly_target . '">پربازدید هفته</a><a href="#' . $monthly_target . '">پربازدید ماه</a>';
-	$html .= '<div id="latest">';
+	$html           = '<html><body><a href="#latest">تازه ها</a><a href="#' . $weekly_target . '">پربازدید هفته</a><a href="#' . $monthly_target . '">پربازدید ماه</a>';
+	$html          .= '<div id="latest">';
 	if ( $latest_zero ) {
 		$html .= '<a href="/Article/Days">آرشیو</a><a href="https://example.com/Article/1">غریبه</a>';
 	} else {
 		for ( $i = 1; $i <= $latest_count; ++$i ) {
-			$html .= '<a href="/Article/' . ( 910000 + $i ) . '">تازه ' . $i . '</a>';
+			$html .= '<a href="/Article/' . ( 910000 + $offset + $i ) . '">تازه ' . $i . '</a>';
 		}
 	}
 	$html .= '</div>';
 	$html .= '<div id="' . $weekly_target . '">';
 	for ( $i = 1; $i <= $weekly_count; ++$i ) {
-		$html .= '<a href="/Article/' . ( 920000 + $i ) . '">هفته ' . $i . '</a>';
+		$html .= '<a href="/Article/' . ( 920000 + $offset + $i ) . '">هفته ' . $i . '</a>';
 	}
 	$html .= '</div>';
 	if ( ! $weekly_collision ) {
-		$html .= '<div id="monthly"><a href="/Article/930001">ماه</a></div>';
+		$html .= '<div id="monthly"><a href="/Article/' . ( 930001 + $offset ) . '">ماه</a></div>';
 	}
 	$html .= '</body></html>';
 	return $html;
@@ -168,6 +168,9 @@ $fetch         = static function ( string $url ) use ( &$fetch_mode, &$fetch_in_
 
 	if ( 'latest_fail' === $fetch_mode && 1 === $fetch_in_mode ) {
 		return array( 'ok' => false, 'http_code' => 503, 'body' => '', 'reason' => 'http_error' );
+	}
+	if ( 'latest_fail' === $fetch_mode && 2 === $fetch_in_mode ) {
+		return array( 'ok' => true, 'http_code' => 200, 'body' => q_homepage( 2, 2, false, false, 1000 ), 'reason' => '' );
 	}
 	if ( 'ambiguous' === $fetch_mode ) {
 		return array( 'ok' => true, 'http_code' => 200, 'body' => q_homepage( 2, 2, true, false ), 'reason' => '' );
@@ -237,8 +240,8 @@ $refresh = new Refresh_Service(
 	$qualification
 );
 
-$before_state = $state;
-$before_fetch = $fetch_count;
+$before_state   = $state;
+$before_fetch   = $fetch_count;
 $blocked_manual = $refresh->run( 'manual' );
 q_assert_same( 'blocked', $blocked_manual['overall_status'], 'fresh unqualified Manual refresh is explicitly blocked' );
 q_assert_same( 'acquisition_contract_unqualified', $blocked_manual['reason'], 'blocked Manual refresh reports bounded qualification reason' );
@@ -249,10 +252,10 @@ q_assert_same( true, $blocked_manual['latest']['local_available'], 'blocked Manu
 q_assert_same( true, $blocked_manual['weekly_popular']['local_available'], 'blocked Manual refresh truthfully preserves existing Weekly LKG' );
 
 /* Existing scheduled event from the previous contract cannot bypass admission. */
-$scheduled_at = 1730000000;
+$scheduled_at    = 1730000000;
 $schedule_writes = 0;
-$clears = 0;
-$scheduler = new Scheduler(
+$clears          = 0;
+$scheduler       = new Scheduler(
 	static function () use ( &$scheduled_at ) { return $scheduled_at; },
 	static function ( $timestamp, $recurrence, $hook ) use ( &$scheduled_at, &$schedule_writes ) {
 		++$schedule_writes;
@@ -281,10 +284,10 @@ q_assert_same( 1, $clears, 'stale scheduled event is cleared exactly once' );
 q_assert_same( 0, $schedule_writes, 'unqualified ensure path never creates a new schedule' );
 
 /* Ordinary Preview remains read-only while unqualified. */
-$fetch_mode    = 'valid';
-$fetch_in_mode = 0;
-$before_state  = $state;
-$before_q      = $qualification_values;
+$fetch_mode     = 'valid';
+$fetch_in_mode  = 0;
+$before_state   = $state;
+$before_q       = $qualification_values;
 $preview_result = $preview->run();
 q_assert_same( 'success', $preview_result['overall_status'], 'ordinary Preview remains usable before qualification' );
 q_assert_same( $before_state, $state, 'ordinary Preview does not mutate article local state' );
@@ -292,6 +295,13 @@ q_assert_same( $before_q, $qualification_values, 'ordinary Preview does not sile
 q_assert_same( false, $qualification->is_qualified(), 'successful ordinary Preview alone does not admit writes' );
 
 /* Failed/ambiguous/zero-item owner qualification cannot enable writes. */
+$fetch_mode    = 'latest_fail';
+$fetch_in_mode = 0;
+$failed_qualification = $qualification->qualify_current();
+q_assert_same( 'rejected', $failed_qualification['status'], 'HTTP/source failure qualification is rejected' );
+q_assert_same( false, $qualification->is_qualified(), 'failed acquisition qualification cannot enable current contract' );
+q_assert_same( array(), $qualification_values, 'failed acquisition qualification persists no false success state' );
+
 $fetch_mode    = 'ambiguous';
 $fetch_in_mode = 0;
 $ambiguous_qualification = $qualification->qualify_current();
@@ -306,10 +316,28 @@ q_assert_same( 'rejected', $zero_qualification['status'], 'zero-item qualificati
 q_assert_same( false, $qualification->is_qualified(), 'zero-item qualification cannot enable current contract' );
 q_assert_same( array(), $qualification_values, 'zero-item qualification persists no success state' );
 
+/* Successful checks without persistent qualification state remain non-admitted. */
+$write_fail_values = array();
+$write_fail_qualification = new Acquisition_Qualification(
+	$preview,
+	static function ( $name, $default = false ) use ( &$write_fail_values ) {
+		return array_key_exists( $name, $write_fail_values ) ? $write_fail_values[ $name ] : $default;
+	},
+	static function () { return false; },
+	static function () { return false; },
+	static function (): string { return '2026-09-30T13:00:30+00:00'; }
+);
+$fetch_mode    = 'valid';
+$fetch_in_mode = 0;
+$write_fail_result = $write_fail_qualification->qualify_current();
+q_assert_same( 'failure', $write_fail_result['status'], 'qualification state write failure is not reported as qualified' );
+q_assert_same( 'qualification_state_write_failed', $write_fail_result['reason'], 'qualification write failure has bounded reason' );
+q_assert_same( false, $write_fail_qualification->is_qualified(), 'unpersisted successful Preview checks do not admit writes' );
+
 /* Exact current-contract qualification enables Manual/Cron and scheduling. */
 $fetch_mode    = 'valid';
 $fetch_in_mode = 0;
-$qualified = $qualification->qualify_current();
+$qualified     = $qualification->qualify_current();
 q_assert_same( 'qualified', $qualified['status'], 'successful exact Preview checks qualify the current contract' );
 q_assert_same( true, $qualified['state_recorded'], 'successful qualification persists bounded state' );
 q_assert_same( true, $qualification->is_qualified(), 'persisted exact-contract state admits writes' );
@@ -332,7 +360,7 @@ q_assert_same( $manual1['run_id'], $store->get_run_summary( 'manual' )['run_id']
 $manual_summary_1 = $store->get_run_summary( 'manual' );
 
 $fetch_in_mode = 0;
-$cron1 = $scheduler->run_cron();
+$cron1         = $scheduler->run_cron();
 q_assert_same( 'success', $cron1['overall_status'], 'qualified Cron callback executes writable canonical path' );
 q_assert_same( 'cron', $store->get_attempt( 'weekly_popular' )['trigger'], 'qualified Cron Weekly attempt records explicit origin' );
 q_assert_same( $cron1['run_id'], $store->get_run_summary( 'cron' )['run_id'], 'qualified Cron summary correlates to run id' );
@@ -340,28 +368,28 @@ q_assert_same( $manual_summary_1, $store->get_run_summary( 'manual' ), 'Cron exe
 $cron_summary_1 = $store->get_run_summary( 'cron' );
 
 $fetch_in_mode = 0;
-$manual2 = $refresh->run( 'manual' );
+$manual2       = $refresh->run( 'manual' );
 q_assert_same( $cron_summary_1, $store->get_run_summary( 'cron' ), 'later Manual execution does not overwrite latest Cron summary' );
 q_assert_same( $manual2['run_id'], $store->get_run_summary( 'manual' )['run_id'], 'latest Manual summary advances independently' );
 
 /* Independent LKG behavior remains intact after admission. */
-$fetch_mode    = 'latest_fail';
-$fetch_in_mode = 0;
-$latest_before_failure = $store->get_snapshot( 'latest' );
-$weekly_before_failure = $store->get_snapshot( 'weekly_popular' );
-$partial = $refresh->run( 'manual' );
+$fetch_mode             = 'latest_fail';
+$fetch_in_mode          = 0;
+$latest_before_failure  = $store->get_snapshot( 'latest' );
+$weekly_before_failure  = $store->get_snapshot( 'weekly_popular' );
+$partial                = $refresh->run( 'manual' );
 q_assert_same( 'partial', $partial['overall_status'], 'qualified refresh preserves independent Latest/Weekly outcomes' );
 q_assert_same( 'preserved_previous', $partial['latest']['action'], 'failed Latest preserves prior LKG' );
 q_assert_same( $latest_before_failure, $store->get_snapshot( 'latest' ), 'failed Latest does not replace LKG' );
 q_assert_same( 'updated', $partial['weekly_popular']['action'], 'healthy Weekly can advance independently' );
-q_assert_true( $weekly_before_failure !== $store->get_snapshot( 'weekly_popular' ), 'healthy Weekly snapshot advances independently' );
+q_assert_true( $weekly_before_failure !== $store->get_snapshot( 'weekly_popular' ), 'healthy Weekly snapshot advances with independently different source data' );
 
 /* Stale/historical qualification never authorizes the current contract. */
 $qualification_values[ Acquisition_Qualification::OPTION_STATE ]['contract_id'] = 'article-days-v0.3.x';
 q_assert_same( false, $qualification->is_qualified(), 'historical v0.3.x-style contract identity cannot authorize v0.4.0' );
 $fetch_in_mode = 0;
-$before_fetch = $fetch_count;
-$stale_block = $refresh->run( 'cron' );
+$before_fetch  = $fetch_count;
+$stale_block   = $refresh->run( 'cron' );
 q_assert_same( 'blocked', $stale_block['overall_status'], 'changing stored contract identity immediately makes prior qualification stale' );
 q_assert_same( $before_fetch, $fetch_count, 'stale qualification blocks Cron before acquisition' );
 
