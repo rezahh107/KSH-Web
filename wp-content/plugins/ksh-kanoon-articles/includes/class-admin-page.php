@@ -217,7 +217,8 @@ final class Admin_Page {
 			<hr>
 			<h2><?php echo esc_html__( 'دادهٔ محلی و Refresh عملیاتی', 'ksh-kanoon-articles' ); ?></h2>
 			<p><?php echo esc_html__( 'این بخش وضعیت Snapshot محلی را نشان می‌دهد. Refresh دستی یک درخواست واقعی به منابع کانون انجام می‌دهد و فقط candidate معتبر هر فهرست را جایگزین Snapshot همان فهرست می‌کند.', 'ksh-kanoon-articles' ); ?></p>
-			<p><strong><?php echo esc_html__( 'اثر جانبی:', 'ksh-kanoon-articles' ); ?></strong> <?php echo esc_html__( 'با اجرای Refresh، Snapshot و وضعیت آخرین تلاش ثبت‌شده در WordPress Options به‌روزرسانی می‌شوند. شکست یا ابهام یک فهرست Snapshot معتبر قبلی آن فهرست را پاک نمی‌کند؛ اگر ثبت وضعیت تلاش ناموفق باشد، نتیجهٔ همین اجرا به‌صورت ناقص عملیاتی گزارش می‌شود.', 'ksh-kanoon-articles' ); ?></p>
+			<p><?php echo esc_html__( 'تا زمانی که قرارداد دریافت فعلی از ابزار «تأیید دریافت مقاله‌های کانون» با موفقیت تأیید نشده باشد، Refresh دستی پیش از هر تماس شبکه‌ای یا نوشتن محلی مسدود می‌شود.', 'ksh-kanoon-articles' ); ?></p>
+			<p><strong><?php echo esc_html__( 'اثر جانبی:', 'ksh-kanoon-articles' ); ?></strong> <?php echo esc_html__( 'با اجرای Refresh مجاز، Snapshot و وضعیت آخرین تلاش ثبت‌شده در WordPress Options به‌روزرسانی می‌شوند. شکست یا ابهام یک فهرست Snapshot معتبر قبلی آن فهرست را پاک نمی‌کند؛ اگر ثبت وضعیت تلاش ناموفق باشد، نتیجهٔ همین اجرا به‌صورت ناقص عملیاتی گزارش می‌شود.', 'ksh-kanoon-articles' ); ?></p>
 
 			<?php if ( is_array( $refresh_result ) ) : ?>
 				<?php $this->render_refresh_result( $refresh_result ); ?>
@@ -336,18 +337,19 @@ final class Admin_Page {
 	 * @return void
 	 */
 	private function render_refresh_result( $result ) {
-		$status       = isset( $result['overall_status'] ) ? (string) $result['overall_status'] : 'failure';
-		$labels       = array(
+		$status = isset( $result['overall_status'] ) ? (string) $result['overall_status'] : 'failure';
+		$labels = array(
 			'success'   => __( 'Refresh کامل: هر دو Snapshot با candidate معتبر به‌روزرسانی شدند و وضعیت تلاش هر دو فهرست ثبت شد.', 'ksh-kanoon-articles' ),
 			'degraded'  => __( 'Refresh ناقص عملیاتی: وضعیت Snapshotها مطابق نتیجهٔ واقعی حفظ/به‌روزرسانی شد، اما ثبت وضعیت تلاش برای حداقل یک فهرست کامل نشد.', 'ksh-kanoon-articles' ),
 			'partial'   => __( 'Refresh جزئی: یک Snapshot به‌روزرسانی شد و فهرست دیگر دادهٔ معتبر قبلی را حفظ کرد یا بدون Snapshot باقی ماند.', 'ksh-kanoon-articles' ),
 			'ambiguous' => __( 'Refresh به‌روزرسانی نداشت و حداقل یک candidate مبهم بود؛ Snapshot قبلی در صورت وجود حفظ شد.', 'ksh-kanoon-articles' ),
 			'failure'   => __( 'Refresh به‌روزرسانی معتبری نداشت؛ Snapshot قبلی در صورت وجود حفظ شد.', 'ksh-kanoon-articles' ),
+			'blocked'   => __( 'Refresh اجرا نشد: قرارداد دریافت فعلی هنوز تأیید نشده است؛ هیچ acquisition یا write محلی انجام نشد.', 'ksh-kanoon-articles' ),
 		);
 		$notice_class = 'notice-error';
 		if ( 'success' === $status ) {
 			$notice_class = 'notice-success';
-		} elseif ( 'partial' === $status || 'degraded' === $status ) {
+		} elseif ( 'partial' === $status || 'degraded' === $status || 'blocked' === $status ) {
 			$notice_class = 'notice-warning';
 		}
 		?>
@@ -372,13 +374,24 @@ final class Admin_Page {
 			'preserved_previous'          => __( 'Candidate معتبر نبود یا write کامل نشد؛ Snapshot معتبر قبلی حفظ شد.', 'ksh-kanoon-articles' ),
 			'no_valid_snapshot_available' => __( 'Candidate معتبر نبود یا write کامل نشد و Snapshot معتبر قبلی نیز وجود ندارد.', 'ksh-kanoon-articles' ),
 		);
-		$action        = isset( $outcome['action'] ) ? (string) $outcome['action'] : 'no_valid_snapshot_available';
+		$action           = isset( $outcome['action'] ) ? (string) $outcome['action'] : 'no_valid_snapshot_available';
+		$candidate_status = isset( $outcome['candidate_status'] ) ? (string) $outcome['candidate_status'] : 'failure';
+		$attempt_reason   = isset( $outcome['attempt_reason'] ) ? (string) $outcome['attempt_reason'] : '';
+		$blocked          = 'blocked' === $candidate_status && 'qualification_required' === $attempt_reason;
+
+		if ( $blocked ) {
+			$action_text = ! empty( $outcome['local_available'] )
+				? __( 'Refresh پیش از acquisition متوقف شد؛ Snapshot معتبر قبلی بدون تغییر باقی ماند.', 'ksh-kanoon-articles' )
+				: __( 'Refresh پیش از acquisition متوقف شد و Snapshot معتبر محلی نیز وجود ندارد.', 'ksh-kanoon-articles' );
+		} else {
+			$action_text = isset( $action_labels[ $action ] ) ? $action_labels[ $action ] : $action_labels['no_valid_snapshot_available'];
+		}
 		?>
 		<p>
 			<strong><?php echo esc_html( $label ); ?>:</strong>
-			<?php echo esc_html( isset( $action_labels[ $action ] ) ? $action_labels[ $action ] : $action_labels['no_valid_snapshot_available'] ); ?>
+			<?php echo esc_html( $action_text ); ?>
 			— <strong><?php echo esc_html__( 'Candidate:', 'ksh-kanoon-articles' ); ?></strong>
-			<bdi dir="ltr"><?php echo esc_html( strtoupper( (string) $outcome['candidate_status'] ) ); ?></bdi>
+			<bdi dir="ltr"><?php echo esc_html( strtoupper( $candidate_status ) ); ?></bdi>
 			— <strong><?php echo esc_html__( 'دادهٔ محلی:', 'ksh-kanoon-articles' ); ?></strong>
 			<?php echo ! empty( $outcome['local_available'] ) ? esc_html__( 'موجود', 'ksh-kanoon-articles' ) : esc_html__( 'ناموجود', 'ksh-kanoon-articles' ); ?>
 		</p>
@@ -388,8 +401,12 @@ final class Admin_Page {
 		<?php if ( empty( $outcome['attempt_recorded'] ) ) : ?>
 			<p>
 				<strong><?php echo esc_html( $label ); ?> — <?php echo esc_html__( 'ثبت وضعیت تلاش:', 'ksh-kanoon-articles' ); ?></strong>
-				<?php echo esc_html__( 'ناموفق؛ Snapshot action بالا معتبر است اما این اجرای عملیاتی به‌طور کامل ثبت نشد.', 'ksh-kanoon-articles' ); ?>
-				— <bdi dir="ltr"><?php echo esc_html( isset( $outcome['attempt_reason'] ) ? $outcome['attempt_reason'] : 'attempt_write_failed' ); ?></bdi>
+				<?php if ( $blocked ) : ?>
+					<?php echo esc_html__( 'انجام نشد؛ admission gate پیش از شروع acquisition این Refresh را متوقف کرد.', 'ksh-kanoon-articles' ); ?>
+				<?php else : ?>
+					<?php echo esc_html__( 'ناموفق؛ Snapshot action بالا معتبر است اما این اجرای عملیاتی به‌طور کامل ثبت نشد.', 'ksh-kanoon-articles' ); ?>
+				<?php endif; ?>
+				— <bdi dir="ltr"><?php echo esc_html( '' !== $attempt_reason ? $attempt_reason : 'attempt_write_failed' ); ?></bdi>
 			</p>
 		<?php endif; ?>
 		<?php
@@ -418,7 +435,7 @@ final class Admin_Page {
 		<p>
 			<strong><?php echo esc_html__( 'Refresh زمان‌بندی‌شده بعدی:', 'ksh-kanoon-articles' ); ?></strong>
 			<?php if ( false === $next ) : ?>
-				<?php echo esc_html__( 'ثبت نشده؛ بررسی self-healing در init دوباره تلاش می‌کند.', 'ksh-kanoon-articles' ); ?>
+				<?php echo esc_html__( 'ثبت نشده؛ قرارداد تأییدنشده عمداً زمان‌بندی نمی‌شود و پس از تأیید، init در صورت نیاز زمان‌بندی را self-heal می‌کند.', 'ksh-kanoon-articles' ); ?>
 			<?php else : ?>
 				<bdi dir="ltr"><?php echo esc_html( gmdate( 'c', (int) $next ) ); ?></bdi>
 			<?php endif; ?>
