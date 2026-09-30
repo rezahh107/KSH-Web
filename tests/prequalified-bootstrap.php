@@ -8,6 +8,9 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-source-config.php';
+require_once __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-acquisition-qualification.php';
+
 $GLOBALS['ksh_prequalified_options'] = array(
 	'ksh_kanoon_articles_acquisition_qualification' => array(
 		'schema_version' => 1,
