@@ -12,8 +12,9 @@ namespace KSH\KanoonArticles;
  */
 final class Source_Config {
 
-	const LATEST_URL = 'https://www.kanoon.ir/Article/Days';
-	const WEEKLY_URL = 'https://www.kanoon.ir/';
+	const HOMEPAGE_URL = 'https://www.kanoon.ir/';
+	const LATEST_URL   = self::HOMEPAGE_URL;
+	const WEEKLY_URL   = self::HOMEPAGE_URL;
 
 	/**
 	 * Get the approved source URL for a list identity.
