@@ -71,13 +71,24 @@ The required structure is defined by `docs/releases/ksh-kanoon-articles/TEMPLATE
 
 Publication uses the exact reviewed notes handed off by the read-only job; it does not synthesize runtime claims. The workflow verifies that the reviewed PR Head and integrated source contain the same release-notes blob before the handoff is created.
 
-### Publication and last-mile verification
+### Publication state and resumable recovery
 
-Immediately before mutation, the write-authority job rechecks that the exact tag and GitHub Release do not already exist. It then creates the exact lightweight tag, publishes a non-draft/non-prerelease GitHub Release, and uploads the exact pre-qualified ZIP from the immutable handoff.
+Immediately before mutation, the write-authority job determines the current GitHub publication state from authenticated API responses and the pre-qualified handoff. A confirmed HTTP `404` means the requested tag/Release is absent. Authentication, transport, rate-limit, server failure, malformed response, or any other inability to determine state is not treated as absence and fails closed.
 
-The same write-authority job downloads that Release asset through GitHub again and compares its SHA-256 with the pre-qualified SHA. It also verifies tag target, Release metadata, GitHub asset digest when available, and release-note identity. It reports `PUBLISHED_AND_VERIFIED` only after those checks pass.
+The admissible states are:
 
-If publication becomes partial (for example the tag exists but Release creation fails), the workflow preserves the successful immutable state, reports the partial condition and fails. It does not move tags, overwrite assets or silently rewrite published history.
+- `ABSENT` — neither tag nor Release exists. Create the exact lightweight tag and then the Release with the exact pre-qualified ZIP.
+- `TAG_ONLY_MATCHING` — the expected tag exists, is a lightweight commit tag, and targets exactly the handoff `integrated_sha`; the Release is absent. Reuse the immutable tag and create only the Release plus asset.
+- `RELEASE_MATCHING_ASSET_MISSING` — the expected tag and Release exist; tag target, Release name, draft/prerelease state and reviewed notes all match the handoff; there are no unexpected uploaded assets; and the expected asset is absent. Upload only the exact handed-off ZIP without clobber/overwrite semantics.
+- `PUBLISHED_MATCHING` — the tag, Release metadata/notes and expected asset already match the handoff, including downloaded asset SHA-256. Perform no mutation and continue through the normal last-mile verification so the run can converge to `PUBLISHED_AND_VERIFIED`.
+
+Every other state fails closed before mutation. Examples include a wrong tag target, a Release existing without its expected tag, unexpected Release title/draft/prerelease state, release-note mismatch, ambiguous/unexpected uploaded assets, or an expected-name asset whose GitHub digest or downloaded SHA-256 differs from the qualified artifact.
+
+An existing tag is never moved or rewritten. An existing asset is never overwritten or replaced. Recovery uses only missing operations that are safe for the exact matching state. A failed mutation preserves any successful immutable state; the next canonical run re-classifies remote state before attempting another mutation.
+
+### Last-mile verification
+
+After normal publication, recovery publication, or a no-op `PUBLISHED_MATCHING` convergence, the write-authority job downloads the Release asset through GitHub again and compares its SHA-256 with the pre-qualified SHA. It also verifies tag target, Release metadata, GitHub asset digest when available, and release-note identity. It reports `PUBLISHED_AND_VERIFIED` only after those checks pass.
 
 ### Security and concurrency
 
@@ -88,12 +99,12 @@ If publication becomes partial (for example the tag exists but Release creation 
 - production publication must be dispatched from `main`;
 - the publish job is gated by successful prepare completion;
 - a release-unit concurrency group prevents overlapping publication runs;
-- tag/release conflicts are checked on the read-only side for early failure and rechecked immediately before mutation on the write-authority side;
-- release-critical ambiguity fails closed.
+- remote publication state is re-classified immediately before mutation and ambiguity fails closed;
+- no recovery path moves a tag, clobbers an asset, or silently rewrites published history.
 
 ## Consequences
 
-The Owner's normal release action becomes: merge a genuinely qualified release-intended PR, then manually run **Publish KSH Kanoon Articles** with that PR number.
+The Owner's normal release action becomes: merge a genuinely qualified release-intended PR, then manually run **Publish KSH Kanoon Articles** with that PR number. If a transient publication failure leaves a matching partial state, re-running the same canonical workflow with the same merged PR number safely resumes from that state.
 
 Version bump automation / a separate Prepare Release workflow is deliberately deferred until release frequency or owner workflow demonstrates that the extra layer is useful.
 
