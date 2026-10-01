@@ -20,7 +20,7 @@ fail() {
 }
 
 archive_timestamps() {
-  unzip -Z -T "$1" | awk '$1 ~ /^[-dl]/ { print $(NF - 1) }' | sort -u
+  TZ=UTC unzip -Z -T "$1" | awk '$1 ~ /^[-dl]/ { print $(NF - 1) }' | sort -u
 }
 
 for command_name in git unzip sha256sum cmp; do
