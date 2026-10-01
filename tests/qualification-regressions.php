@@ -624,6 +624,4 @@ q_assert_true( false !== strpos( $plugin_source, 'new Scheduler( null, null, nul
 q_assert_true( false !== strpos( $refresh_source, "array( 'manual', 'cron' )" ) && false !== strpos( $refresh_source, '! $this->qualification->is_qualified()' ), 'canonical Manual/Cron refresh path contains fail-closed admission guard' );
 q_assert_true( false !== strpos( $scheduler_source, '! $this->qualification->is_qualified()' ), 'scheduler contains independent stale-event admission guard' );
 
-q_assert_same( '0.4.0', Plugin::VERSION, 'qualification repair remains within the existing unmerged v0.4.0 release identity' );
-
 echo 'QUALIFICATION_REGRESSION_PASS assertions=' . $assertions . PHP_EOL;

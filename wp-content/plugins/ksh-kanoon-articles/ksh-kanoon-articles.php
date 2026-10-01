@@ -2,7 +2,8 @@
 /**
  * Plugin Name: KSH Kanoon Articles
  * Description: Qualified Kanoon article metadata acquisition with independent local last-known-good refresh.
- * Version: 0.4.0
+ * Version: 0.4.1
+ * Author: Reza Hahsemi Hosseini
  * Text Domain: ksh-kanoon-articles
  *
  * @package KSH_Kanoon_Articles
