@@ -76,27 +76,27 @@ final class Diagnostic_Report {
 	 * @return array<string,mixed>
 	 */
 	public function build() {
-		$clock                       = $this->clock;
-		$runtime_facts               = $this->runtime_facts;
-		$generated_at                = (string) $clock();
-		$current_contract_id         = Source_Config::ACQUISITION_CONTRACT_ID;
-		$qualification               = $this->qualification_report( $current_contract_id );
-		$next_run                    = $this->scheduler->next_run();
-		$scheduled                   = false !== $next_run;
-		$last_manual                 = $this->run_summary_report( $this->store->get_run_summary( 'manual' ), 'manual', $current_contract_id );
-		$last_cron                   = $this->run_summary_report( $this->store->get_run_summary( 'cron' ), 'cron', $current_contract_id );
-		$manual_observed             = is_array( $last_manual ) && ! empty( $last_manual['belongs_to_current_contract'] );
-		$cron_observed               = is_array( $last_cron ) && ! empty( $last_cron['belongs_to_current_contract'] );
-		$historical_cron_evidence    = null !== $last_cron && ! $cron_observed;
-		$latest                      = $this->snapshot_report( 'latest' );
-		$weekly                      = $this->snapshot_report( 'weekly_popular' );
-		$latest_attempt              = $this->attempt_report( $this->store->get_attempt( 'latest' ), $current_contract_id );
-		$weekly_attempt              = $this->attempt_report( $this->store->get_attempt( 'weekly_popular' ), $current_contract_id );
-		$manual_summary_gap          = $this->attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'manual', $last_manual );
-		$cron_summary_gap            = $this->attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'cron', $last_cron );
-		$current_manual_summary_gap  = $this->current_contract_attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'manual', $last_manual );
-		$current_cron_summary_gap    = $this->current_contract_attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'cron', $last_cron );
-		$current_observability_gap   = $current_manual_summary_gap || $current_cron_summary_gap;
+		$clock                      = $this->clock;
+		$runtime_facts              = $this->runtime_facts;
+		$generated_at               = (string) $clock();
+		$current_contract_id        = Source_Config::ACQUISITION_CONTRACT_ID;
+		$qualification              = $this->qualification_report( $current_contract_id );
+		$next_run                   = $this->scheduler->next_run();
+		$scheduled                  = false !== $next_run;
+		$last_manual                = $this->run_summary_report( $this->store->get_run_summary( 'manual' ), 'manual', $current_contract_id );
+		$last_cron                  = $this->run_summary_report( $this->store->get_run_summary( 'cron' ), 'cron', $current_contract_id );
+		$manual_observed            = is_array( $last_manual ) && ! empty( $last_manual['belongs_to_current_contract'] );
+		$cron_observed              = is_array( $last_cron ) && ! empty( $last_cron['belongs_to_current_contract'] );
+		$historical_cron_evidence   = null !== $last_cron && ! $cron_observed;
+		$latest                     = $this->snapshot_report( 'latest' );
+		$weekly                     = $this->snapshot_report( 'weekly_popular' );
+		$latest_attempt             = $this->attempt_report( $this->store->get_attempt( 'latest' ), $current_contract_id );
+		$weekly_attempt             = $this->attempt_report( $this->store->get_attempt( 'weekly_popular' ), $current_contract_id );
+		$manual_summary_gap         = $this->attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'manual', $last_manual );
+		$cron_summary_gap           = $this->attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'cron', $last_cron );
+		$current_manual_summary_gap = $this->current_contract_attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'manual', $last_manual );
+		$current_cron_summary_gap   = $this->current_contract_attempts_without_matching_summary( $latest_attempt, $weekly_attempt, 'cron', $last_cron );
+		$current_observability_gap  = $current_manual_summary_gap || $current_cron_summary_gap;
 
 		return array(
 			'report'      => array(
@@ -117,14 +117,14 @@ final class Diagnostic_Report {
 			'acquisition' => $qualification,
 			'runtime'     => (array) $runtime_facts(),
 			'scheduler'   => array(
-				'hook'                                         => Scheduler::HOOK,
-				'event_registered'                             => $scheduled,
-				'recurrence'                                   => $scheduled ? $this->scheduler->recurrence() : null,
-				'next_run_unix'                                => $scheduled ? (int) $next_run : null,
-				'next_run_utc'                                 => $scheduled ? gmdate( 'c', (int) $next_run ) : null,
-				'cron_execution_observed'                      => $cron_observed,
+				'hook'                     => Scheduler::HOOK,
+				'event_registered'         => $scheduled,
+				'recurrence'               => $scheduled ? $this->scheduler->recurrence() : null,
+				'next_run_unix'            => $scheduled ? (int) $next_run : null,
+				'next_run_utc'             => $scheduled ? gmdate( 'c', (int) $next_run ) : null,
+				'cron_execution_observed'   => $cron_observed,
 				'historical_cron_execution_evidence_available' => $historical_cron_evidence,
-				'last_cron_run'                                => $last_cron,
+				'last_cron_run'            => $last_cron,
 			),
 			'refresh'     => array(
 				'manual_execution_observed' => $manual_observed,
@@ -143,21 +143,21 @@ final class Diagnostic_Report {
 				),
 			),
 			'assessment'  => array(
-				'local_latest_available'                                    => ! empty( $latest['available'] ),
-				'local_latest_valid'                                        => ! empty( $latest['valid'] ),
-				'local_weekly_available'                                    => ! empty( $weekly['available'] ),
-				'local_weekly_valid'                                        => ! empty( $weekly['valid'] ),
-				'scheduler_registered'                                      => $scheduled,
-				'manual_execution_observed'                                 => $manual_observed,
-				'cron_execution_observed'                                   => $cron_observed,
-				'last_cron_overall_status'                                  => $cron_observed ? $last_cron['overall_status'] : null,
-				'manual_attempts_without_matching_summary'                  => $manual_summary_gap,
-				'cron_attempts_without_matching_summary'                    => $cron_summary_gap,
-				'observability_incomplete'                                  => $manual_summary_gap || $cron_summary_gap,
+				'local_latest_available'                   => ! empty( $latest['available'] ),
+				'local_latest_valid'                       => ! empty( $latest['valid'] ),
+				'local_weekly_available'                   => ! empty( $weekly['available'] ),
+				'local_weekly_valid'                       => ! empty( $weekly['valid'] ),
+				'scheduler_registered'                     => $scheduled,
+				'manual_execution_observed'                => $manual_observed,
+				'cron_execution_observed'                  => $cron_observed,
+				'last_cron_overall_status'                 => $cron_observed ? $last_cron['overall_status'] : null,
+				'manual_attempts_without_matching_summary' => $manual_summary_gap,
+				'cron_attempts_without_matching_summary'   => $cron_summary_gap,
+				'observability_incomplete'                 => $manual_summary_gap || $cron_summary_gap,
 				'current_contract_manual_attempts_without_matching_summary' => $current_manual_summary_gap,
-				'current_contract_cron_attempts_without_matching_summary'   => $current_cron_summary_gap,
-				'current_contract_observability_incomplete'                 => $current_observability_gap,
-				'diagnostic_state'                                          => $this->diagnostic_state( $scheduled, $cron_observed ),
+				'current_contract_cron_attempts_without_matching_summary' => $current_cron_summary_gap,
+				'current_contract_observability_incomplete' => $current_observability_gap,
+				'diagnostic_state'                         => $this->diagnostic_state( $scheduled, $cron_observed ),
 			),
 		);
 	}
@@ -212,13 +212,13 @@ final class Diagnostic_Report {
 		$stored_contract_id = is_array( $state ) && ! empty( $state['contract_id'] ) ? (string) $state['contract_id'] : null;
 
 		return array(
-			'current_contract_id'                  => $current_contract_id,
-			'current_contract_qualified'           => $qualified,
-			'qualification_state_available'        => is_array( $state ),
-			'qualification_state_status'           => is_array( $state ) && isset( $state['status'] ) ? (string) $state['status'] : null,
-			'qualification_state_contract_id'      => $stored_contract_id,
-			'qualification_state_qualified_at'     => is_array( $state ) && ! empty( $state['qualified_at'] ) ? (string) $state['qualified_at'] : null,
-			'qualification_state_matches_current'  => null !== $stored_contract_id && $current_contract_id === $stored_contract_id,
+			'current_contract_id'                 => $current_contract_id,
+			'current_contract_qualified'          => $qualified,
+			'qualification_state_available'       => is_array( $state ),
+			'qualification_state_status'          => is_array( $state ) && isset( $state['status'] ) ? (string) $state['status'] : null,
+			'qualification_state_contract_id'     => $stored_contract_id,
+			'qualification_state_qualified_at'    => is_array( $state ) && ! empty( $state['qualified_at'] ) ? (string) $state['qualified_at'] : null,
+			'qualification_state_matches_current' => null !== $stored_contract_id && $current_contract_id === $stored_contract_id,
 		);
 	}
 
@@ -305,29 +305,29 @@ final class Diagnostic_Report {
 			return null;
 		}
 
-		$stored_trigger  = isset( $attempt['trigger'] ) ? (string) $attempt['trigger'] : '';
-		$trigger         = in_array( $stored_trigger, array( 'manual', 'cron' ), true ) ? $stored_trigger : 'unknown';
-		$run_id          = isset( $attempt['run_id'] ) && '' !== (string) $attempt['run_id'] ? (string) $attempt['run_id'] : null;
-		$explicit        = 'unknown' !== $trigger && null !== $run_id;
-		$action          = isset( $attempt['action'] ) ? (string) $attempt['action'] : '';
-		$contract_id     = isset( $attempt['acquisition_contract_id'] ) && '' !== (string) $attempt['acquisition_contract_id'] ? (string) $attempt['acquisition_contract_id'] : null;
-		$provenance      = $this->contract_provenance( $contract_id, $current_contract_id );
+		$stored_trigger   = isset( $attempt['trigger'] ) ? (string) $attempt['trigger'] : '';
+		$trigger          = in_array( $stored_trigger, array( 'manual', 'cron' ), true ) ? $stored_trigger : 'unknown';
+		$run_id           = isset( $attempt['run_id'] ) && '' !== (string) $attempt['run_id'] ? (string) $attempt['run_id'] : null;
+		$explicit         = 'unknown' !== $trigger && null !== $run_id;
+		$action           = isset( $attempt['action'] ) ? (string) $attempt['action'] : '';
+		$contract_id      = isset( $attempt['acquisition_contract_id'] ) && '' !== (string) $attempt['acquisition_contract_id'] ? (string) $attempt['acquisition_contract_id'] : null;
+		$provenance       = $this->contract_provenance( $contract_id, $current_contract_id );
 		$current_contract = 'current_contract' === $provenance;
 
 		return array(
-			'schema_version'            => isset( $attempt['schema_version'] ) ? (int) $attempt['schema_version'] : null,
-			'trigger'                   => $trigger,
-			'run_id'                    => $run_id,
-			'attribution'               => $explicit ? 'explicit' : 'legacy_or_unknown',
-			'acquisition_contract_id'   => $contract_id,
-			'contract_provenance'       => $provenance,
+			'schema_version'              => isset( $attempt['schema_version'] ) ? (int) $attempt['schema_version'] : null,
+			'trigger'                     => $trigger,
+			'run_id'                      => $run_id,
+			'attribution'                 => $explicit ? 'explicit' : 'legacy_or_unknown',
+			'acquisition_contract_id'     => $contract_id,
+			'contract_provenance'         => $provenance,
 			'belongs_to_current_contract' => $current_contract,
-			'attempted_at'              => isset( $attempt['attempted_at'] ) ? (string) $attempt['attempted_at'] : null,
-			'candidate_status'          => isset( $attempt['candidate_status'] ) ? (string) $attempt['candidate_status'] : 'unknown',
-			'http_code'                 => isset( $attempt['http_code'] ) && is_numeric( $attempt['http_code'] ) ? (int) $attempt['http_code'] : null,
-			'action'                    => $action,
-			'reason'                    => isset( $attempt['reason'] ) ? (string) $attempt['reason'] : '',
-			'preserved_last_known_good' => 'preserved_previous' === $action,
+			'attempted_at'                => isset( $attempt['attempted_at'] ) ? (string) $attempt['attempted_at'] : null,
+			'candidate_status'            => isset( $attempt['candidate_status'] ) ? (string) $attempt['candidate_status'] : 'unknown',
+			'http_code'                   => isset( $attempt['http_code'] ) && is_numeric( $attempt['http_code'] ) ? (int) $attempt['http_code'] : null,
+			'action'                      => $action,
+			'reason'                      => isset( $attempt['reason'] ) ? (string) $attempt['reason'] : '',
+			'preserved_last_known_good'   => 'preserved_previous' === $action,
 		);
 	}
 
