@@ -80,6 +80,14 @@ if [[ "$actual_version" != "$expected_version" ]]; then
   exit 1
 fi
 
+author_file="$plugin_dir/ksh-kanoon-articles.php"
+author_headers="$(grep -Ec '^[[:space:]]*\*[[:space:]]*Author:' "$author_file" || true)"
+exact_author_headers="$(grep -Ec '^[[:space:]]*\*[[:space:]]*Author:[[:space:]]*Reza Hahsemi Hosseini[[:space:]]*$' "$author_file" || true)"
+if [[ "$author_headers" != '1' || "$exact_author_headers" != '1' ]]; then
+  echo "KSH_RELEASE_ZIP_VERIFY_FAIL: packaged plugin Author must be exactly Reza Hahsemi Hosseini" >&2
+  exit 1
+fi
+
 php_files=0
 while IFS= read -r -d '' php_file; do
   php -l "$php_file" >/dev/null
