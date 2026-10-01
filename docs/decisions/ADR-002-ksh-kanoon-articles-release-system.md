@@ -55,9 +55,11 @@ Repository qualification does not prove real WordPress runtime behavior that it 
 
 ### Canonical artifact builder
 
-`scripts/release/build-ksh-kanoon-articles.sh` is the only production ZIP builder. It uses `git archive` directly from the exact integrated commit's plugin subtree rather than packaging the runner working tree.
+`scripts/release/build-ksh-kanoon-articles.sh` is the only production ZIP builder. It resolves the supplied source ref once to an immutable commit, then archives the exact plugin subtree from that commit rather than packaging the runner working tree.
 
-`scripts/release/verify-ksh-kanoon-articles-zip.sh` validates archive integrity, single installable root, required/forbidden content, packaged version mirrors, PHP syntax and SHA-256. This verifier runs only in the read-only prepare job.
+Archive metadata is part of production artifact identity. A subtree expression such as `<commit>:wp-content/plugins/ksh-kanoon-articles` resolves to a Git tree; without an explicit archive time, `git archive` assigns build-time timestamps to ZIP entries. The canonical builder therefore derives one timestamp from the immutable source commit's committer epoch, invokes `git archive --mtime=@<source-epoch>` with `TZ=UTC`, and applies that same deterministic timestamp to every archive entry. For the same immutable source commit, plugin subtree, version and builder/configuration, repeated builds must be byte-identical and produce the same SHA-256 regardless of execution time or caller timezone.
+
+`scripts/release/verify-ksh-kanoon-articles-zip.sh` validates archive integrity, single installable root, required/forbidden content, packaged version mirrors, exact Author metadata, PHP syntax and SHA-256. The deterministic release regression additionally builds the same immutable source more than once outside the ZIP timestamp-resolution window, verifies byte/SHA equality and commit-derived entry timestamps, and proves that a real packaged-source change changes artifact identity while the package verifier continues to pass. These checks run only in the read-only qualification boundary.
 
 The publication job re-hashes the handed-off ZIP before mutation. It does not re-run repository ZIP-verifier code under write authority. After publication, it downloads the actual Release asset and proves byte-for-byte identity by SHA-256 equality with the already-qualified canonical ZIP; that equality carries the prepare job's structural/version/PHP qualification to the distributed asset without rebuilding or re-executing repository validation code.
 
@@ -113,3 +115,5 @@ The Owner's normal release action becomes: merge a genuinely qualified release-i
 Version bump automation / a separate Prepare Release workflow is deliberately deferred until release frequency or owner workflow demonstrates that the extra layer is useful.
 
 The existing v0.4.0 Release is historical publication evidence and is not mutated by this implementation.
+
+The already published `ksh-kanoon-articles-v0.4.1` Release is also immutable historical evidence. Its verified asset SHA-256 remains `a68b0031f38cd05423230cb08585fb7525267729fd1df2b039c9f93a3fc5fac9`; it was built before deterministic archive metadata was introduced and must not be rewritten, replaced, retagged or normalized. A fresh dispatch for that pre-fix release remains a documented historical exception rather than receiving a legacy SHA bypass: the old integrated source contains the old builder, and a newly deterministic build from the same source would intentionally have different archive metadata from the already published pre-fix bytes. Future artifacts built under the repaired Release System must satisfy byte-identical rebuild semantics; ordinary SHA mismatch remains fail-closed.
