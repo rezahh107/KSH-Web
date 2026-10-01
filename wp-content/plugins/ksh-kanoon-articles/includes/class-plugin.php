@@ -27,7 +27,7 @@ final class Plugin {
 		$store         = new Snapshot_Store();
 		$refresh       = new Refresh_Service( $preview, $store, null, null, $qualification );
 		$scheduler     = new Scheduler( null, null, null, null, null, $qualification );
-		$diagnostic    = new Diagnostic_Report( $store, $scheduler );
+		$diagnostic    = new Diagnostic_Report( $store, $scheduler, null, null, $qualification );
 		$admin         = new Admin_Page( $preview, $refresh, $store, $scheduler, $diagnostic );
 		$qualify_admin = new Qualification_Admin_Page( $qualification, $scheduler );
 		$renderer      = new Frontend_Renderer( $store );
