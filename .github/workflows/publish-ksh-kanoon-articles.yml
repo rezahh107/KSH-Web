@@ -335,6 +335,81 @@ jobs:
           }
           # END KSH_GITHUB_API_GET_FUNCTION
 
+          # BEGIN KSH_RELEASE_ASSET_STATE_CLASSIFIER_FUNCTION
+          classify_release_asset_state() {
+            local release_json="$1"
+            local asset_name="$2"
+            local expected_sha="$3"
+            local tag="$4"
+            local probe_dir="$5"
+            local expected_asset_count
+            local unexpected_asset_count
+
+            expected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)] | length' "$release_json")" || return 1
+            unexpected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name != $name)] | length' "$release_json")" || return 1
+
+            if (( unexpected_asset_count > 0 || expected_asset_count > 1 )); then
+              printf 'AMBIGUOUS|\n'
+              return 0
+            fi
+            if (( expected_asset_count == 0 )); then
+              printf 'MISSING|\n'
+              return 0
+            fi
+
+            local remote_state
+            local remote_size
+            local remote_id
+            local remote_digest
+            remote_state="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].state // ""' "$release_json")" || return 1
+            remote_size="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].size' "$release_json")" || return 1
+            remote_id="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].id' "$release_json")" || return 1
+
+            case "$remote_state" in
+              starter)
+                if [[ "$remote_id" =~ ^[1-9][0-9]*$ && "$remote_size" == '0' ]]; then
+                  printf 'STARTER_RECOVERABLE|%s\n' "$remote_id"
+                else
+                  printf 'STARTER_INVALID|\n'
+                fi
+                ;;
+              uploaded)
+                remote_digest="$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].digest // ""' "$release_json")" || return 1
+                if [[ -n "$remote_digest" && "$remote_digest" != "sha256:${expected_sha}" ]]; then
+                  printf 'MISMATCH|\n'
+                  return 0
+                fi
+
+                local existing_dir="$probe_dir/existing-asset"
+                local existing_asset="$existing_dir/$asset_name"
+                local existing_sha
+                mkdir -p "$existing_dir"
+                rm -f "$existing_asset"
+                if ! gh release download "$tag" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --pattern "$asset_name" \
+                  --dir "$existing_dir"; then
+                  echo 'Unable to download existing Release asset; publication state is indeterminate' >&2
+                  return 1
+                fi
+                [[ -s "$existing_asset" ]] || {
+                  echo 'Existing uploaded Release asset download is missing/empty; publication state is indeterminate' >&2
+                  return 1
+                }
+                existing_sha="$(sha256sum "$existing_asset" | awk '{print $1}')"
+                if [[ "$existing_sha" == "$expected_sha" ]]; then
+                  printf 'MATCHING|\n'
+                else
+                  printf 'MISMATCH|\n'
+                fi
+                ;;
+              *)
+                printf 'UNKNOWN|\n'
+                ;;
+            esac
+          }
+          # END KSH_RELEASE_ASSET_STATE_CLASSIFIER_FUNCTION
+
           # BEGIN KSH_PUBLICATION_STATE_CLASSIFIER_FUNCTION
           classify_publication_state() {
             local tag_presence="$1"
@@ -383,16 +458,28 @@ jobs:
                     printf 'RELEASE_MATCHING_ASSET_MISSING\n'
                     return 0
                     ;;
+                  STARTER_RECOVERABLE)
+                    printf 'RELEASE_MATCHING_STARTER_ASSET\n'
+                    return 0
+                    ;;
                   MATCHING)
                     printf 'PUBLISHED_MATCHING\n'
                     return 0
                     ;;
                   MISMATCH)
-                    echo 'Existing expected-name asset content does not match qualified artifact' >&2
+                    echo 'Existing expected-name uploaded asset content does not match qualified artifact' >&2
+                    return 1
+                    ;;
+                  STARTER_INVALID)
+                    echo 'Expected-name starter asset does not match the documented empty failed-upload shape' >&2
                     return 1
                     ;;
                   AMBIGUOUS)
-                    echo 'Existing Release asset set is ambiguous or contains unexpected uploaded assets' >&2
+                    echo 'Existing Release asset set is ambiguous or contains unexpected assets' >&2
+                    return 1
+                    ;;
+                  UNKNOWN)
+                    echo 'Existing expected-name asset has an unsupported GitHub asset state' >&2
                     return 1
                     ;;
                   *)
@@ -429,6 +516,7 @@ jobs:
           prerelease=''
           notes_match='false'
           asset_state='MISSING'
+          starter_asset_id=''
 
           if [[ "$tag_presence" == 'FOUND' ]]; then
             tag_type="$(jq -er '.object.type' "$tag_json")"
@@ -449,37 +537,18 @@ jobs:
               notes_match='true'
             fi
 
-            expected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)] | length' "$release_json")"
-            unexpected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name != $name)] | length' "$release_json")"
-
-            if (( unexpected_asset_count > 0 || expected_asset_count > 1 )); then
-              asset_state='AMBIGUOUS'
-            elif (( expected_asset_count == 0 )); then
-              asset_state='MISSING'
-            else
-              remote_digest="$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].digest // ""' "$release_json")"
-              if [[ -n "$remote_digest" && "$remote_digest" != "sha256:${expected_sha}" ]]; then
-                asset_state='MISMATCH'
-              else
-                existing_dir="$probe_dir/existing-asset"
-                mkdir -p "$existing_dir"
-                if ! gh release download "$tag" \
-                  --repo "$GITHUB_REPOSITORY" \
-                  --pattern "$asset_name" \
-                  --dir "$existing_dir"; then
-                  echo 'Unable to download existing Release asset; publication state is indeterminate' >&2
-                  exit 1
-                fi
-                existing_asset="$existing_dir/$asset_name"
-                [[ -s "$existing_asset" ]] || { echo 'Existing Release asset download is missing/empty' >&2; exit 1; }
-                existing_sha="$(sha256sum "$existing_asset" | awk '{print $1}')"
-                if [[ "$existing_sha" == "$expected_sha" ]]; then
-                  asset_state='MATCHING'
-                else
-                  asset_state='MISMATCH'
-                fi
-              fi
+            asset_probe="$(classify_release_asset_state \
+              "$release_json" \
+              "$asset_name" \
+              "$expected_sha" \
+              "$tag" \
+              "$probe_dir")" || exit 1
+            if [[ "$asset_probe" != *'|'* ]]; then
+              echo 'Release asset classifier returned malformed output' >&2
+              exit 1
             fi
+            asset_state="${asset_probe%%|*}"
+            starter_asset_id="${asset_probe#*|}"
           fi
 
           state="$(classify_publication_state \
@@ -495,7 +564,10 @@ jobs:
             "$asset_state")" || exit 1
 
           echo "Publication state: $state"
-          echo "state=$state" >> "$GITHUB_OUTPUT"
+          {
+            echo "state=$state"
+            echo "starter_asset_id=$starter_asset_id"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Publish or resume exact qualified state
         id: publish_release
@@ -514,6 +586,7 @@ jobs:
             local title="$4"
             local notes="$5"
             local artifact="$6"
+            local starter_asset_id="${7:-}"
 
             case "$state" in
               ABSENT)
@@ -539,6 +612,18 @@ jobs:
                 gh release upload "$tag" "$artifact" \
                   --repo "$GITHUB_REPOSITORY"
                 ;;
+              RELEASE_MATCHING_STARTER_ASSET)
+                if [[ ! "$starter_asset_id" =~ ^[1-9][0-9]*$ ]]; then
+                  echo 'Recoverable starter state is missing a valid GitHub asset ID' >&2
+                  return 1
+                fi
+                if ! gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${starter_asset_id}" >/dev/null; then
+                  echo "Failed to delete documented GitHub starter asset id=$starter_asset_id; refusing upload" >&2
+                  return 1
+                fi
+                gh release upload "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY"
+                ;;
               PUBLISHED_MATCHING)
                 echo 'Exact matching publication already exists; no mutation required.'
                 ;;
@@ -556,7 +641,8 @@ jobs:
             '${{ steps.handoff.outputs.tag }}' \
             '${{ steps.handoff.outputs.title }}' \
             '${{ steps.handoff.outputs.notes }}' \
-            '${{ steps.handoff.outputs.artifact }}'
+            '${{ steps.handoff.outputs.artifact }}' \
+            '${{ steps.remote_state.outputs.starter_asset_id }}'
 
       - name: Report publication mutation failure
         if: steps.publish_release.outcome == 'failure'
@@ -567,7 +653,8 @@ jobs:
             echo
             echo '- Starting qualified remote state: `${{ steps.remote_state.outputs.state }}`'
             echo '- Remote post-failure state was not guessed from a failed API call.'
-            echo '- No tag move, asset overwrite, rollback or history rewrite was attempted.'
+            echo '- No tag move, ordinary asset overwrite, rollback or history rewrite was attempted.'
+            echo '- If a documented starter asset was deleted before a later upload failure, a canonical re-run will safely re-classify the resulting missing/starter state.'
             echo '- Re-run the canonical workflow; it will re-classify the remote state before any further mutation.'
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
