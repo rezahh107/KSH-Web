@@ -2,7 +2,7 @@
 
 Official WordPress website project for **Kanoon Farhangi Amoozeshi Shiraz (کانون فرهنگی آموزشی شیراز)**.
 
-The repository contains the site-specific **KSH Kanoon Articles** plugin. It covers qualified acquisition, independent local last-known-good snapshots, explicitly attributed Manual/Cron refresh execution, one approximately-daily WordPress-native refresh schedule, a one-click read-only JSON diagnostic export, and a public local-only article renderer exposed through a standard WordPress shortcode.
+The repository contains the site-specific **KSH Kanoon Articles** plugin. It covers qualified acquisition, independent local last-known-good snapshots, explicitly attributed Manual/Cron refresh execution, one approximately-daily WordPress-native refresh schedule after qualification, a one-click read-only JSON diagnostic export, and a public local-only article renderer exposed through a standard WordPress shortcode.
 
 ## Start here
 
@@ -21,19 +21,31 @@ Plugin source:
 wp-content/plugins/ksh-kanoon-articles/
 ```
 
-Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.3.1**.
+Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.4.0**.
 
-The wp-admin surface remains under **Tools → آزمون اتصال مقاله‌های کانون** and exposes three bounded actions:
+The existing wp-admin surface under **Tools → آزمون اتصال مقاله‌های کانون** exposes three bounded actions:
 
-- **Preview/Test Connection** — remote read + parse/validation only; it never mutates local snapshots.
-- **Refresh Local Data Now** — remote acquisition through the same qualified candidate producer; only successful validated candidates replace the corresponding local list snapshot and the run is explicitly attributed as `manual`.
+- **Preview/Test Connection** — remote read + parse/validation only; it never mutates local snapshots or qualification state.
+- **Refresh Local Data Now** — qualified Manual acquisition through the canonical refresh path; while the exact current acquisition contract is unqualified this action is blocked before remote acquisition and before snapshot/attempt/run-summary mutation.
 - **دانلود گزارش JSON** — authenticated read-only download of current plugin/runtime evidence; it performs no remote acquisition, Refresh, option write, or Cron schedule mutation.
 
-Latest and Weekly Popular snapshots are independent. A failed, empty, malformed, or ambiguous candidate cannot erase a previous valid snapshot for that list. Per-list last-attempt metadata is stored separately from last-known-good data and carries explicit `manual` / `cron` origin plus a bounded run identifier for new executions; legacy unattributed attempts remain readable as `unknown`.
+A separate protected Tools surface, **تأیید دریافت مقاله‌های کانون**, is the explicit Owner qualification action. It executes the exact current `Preview_Service` checks and records one bounded non-autoloaded qualification state only when both Latest and Weekly Popular succeed with non-empty valid results. Failed, ambiguous, zero-item, or qualification-state-write-failed executions do not qualify the contract.
 
-The plugin uses WordPress Options for the small local state and one native daily WP-Cron hook. It preserves only the latest bounded Manual run summary and latest bounded Cron run summary as separate non-autoloaded options; there is no unbounded activity history. A cheap `init` schedule-existence check self-heals the schedule after an in-place plugin upgrade; this check never performs remote acquisition. Deactivation unschedules the hook but deliberately preserves valid snapshots and diagnostic evidence.
+The qualification source of truth is tied to an explicit acquisition-contract identity, currently:
 
-Schedule registration and actual Cron execution are intentionally separate facts. `wp_next_scheduled()` proves only that the owned event is registered. `cron_execution_observed=true` appears in the diagnostic JSON only when a persisted `cron` run summary exists from the scheduled callback path.
+```text
+kanoon-homepage-semantic-lists-v1
+```
+
+This identity is intentionally independent from the plugin version. A future material source/parser contract change must use a new identity; qualification for an older identity is stale and cannot authorize Manual/Cron writes automatically.
+
+Latest and Weekly Popular snapshots are independent. A failed, empty, malformed, or ambiguous candidate cannot erase a previous valid snapshot for that list. Per-list last-attempt metadata is stored separately from last-known-good data and carries explicit `manual` / `cron` origin, a bounded run identifier, and the producing `acquisition_contract_id` for new executions. Legacy attempts without contract identity remain readable as historical/unknown-contract evidence rather than being upgraded to current-contract proof.
+
+Both current list acquisitions use `https://www.kanoon.ir/`, but they remain independently fetched and diagnosed. **Latest / `تازه‌ها`** is bound to the homepage's semantic `تازه‌ها` tab and its actual fragment target. **Weekly Popular / `پربازدید هفته`** keeps the semantic homepage tab/target parser with Monthly Popular as a sibling boundary. `/Article/Days` is no longer the public semantic source for Latest and is not used as a fallback under the `تازه‌ها` label.
+
+The plugin uses WordPress Options for the small local state. The daily WP-Cron event is admitted only for a qualified current acquisition contract. The cheap `init` schedule-existence check clears an already-registered event left by a previous/stale contract while current qualification is absent, and the Cron callback itself independently checks admission before invoking writable refresh. This closes both scheduling and stale-event execution bypasses. Deactivation unschedules the hook but deliberately preserves valid snapshots and diagnostic evidence.
+
+Schedule registration and actual Cron execution are intentionally separate facts. `wp_next_scheduled()` proves only that the owned event is registered. Newly persisted Manual/Cron run summaries carry the exact producing `acquisition_contract_id`; `cron_execution_observed=true` in the current diagnostic means a usable Cron summary explicitly belongs to the exact current acquisition contract. Legacy summaries with no contract id and summaries for a different/stale contract remain visible as historical evidence but cannot satisfy current-contract execution proof merely because they survived an upgrade. Qualification and execution evidence are reported independently.
 
 It does **not** create Posts/CPTs, persist raw remote HTML, mirror article bodies/media, add a Gutenberg block/Elementor widget, or contact `kanoon.ir` while rendering public pages.
 
@@ -43,11 +55,13 @@ Public placement seam:
 [ksh_kanoon_articles]
 ```
 
-The shortcode delegates to a reusable renderer that reads `Snapshot_Store::get_snapshot()` only. It renders the canonical `تازه‌های کانون` section with `تازه‌ها` and `پربازدید هفته`, preserves stored ordering, renders every available validated item, escapes all output, and fails softly when one or both lists are unavailable. `date_context` remains part of validated local snapshot/diagnostic data but is intentionally not displayed in the public module. Presentation is Persian RTL, responsive, scoped below `.ksh-kanoon-articles`, uses no frontend JavaScript, and lets each desktop panel keep its own natural content height.
+The shortcode delegates to a reusable renderer that reads `Snapshot_Store::get_snapshot()` only. It renders the canonical `تازه‌های کانون` section with `تازه‌ها` and `پربازدید هفته`, preserves stored ordering, and displays at most the first **15** valid links from each list. This 15-item cap is presentation-only: a valid local snapshot may retain more items and the renderer does not rewrite or truncate storage. `date_context` remains part of validated local snapshot/diagnostic data but is intentionally not displayed in the public module.
+
+Presentation is Persian RTL, responsive, scoped below `.ksh-kanoon-articles`, uses no frontend JavaScript, and lets each desktop panel keep its own natural content height. Article-link density is intentionally compact (approximately 14px at the normal 16px root scale) with tighter line-height/row spacing. KSH does not own font delivery: it inherits the site's active typography. With the exact Owner companion `rezahh107/Vazir` active, the site-delivered canonical family is `Vazirmatn`; KSH bundles no font files, defines no `@font-face`, and has no PHP/runtime dependency on that companion.
 
 ## Real-host qualification evidence
 
-Three bounded real-host observations now exist.
+Three bounded historical real-host observations exist.
 
 The Owner first executed the merged v0.1.0 read-only Preview on the real KSH WordPress host:
 
@@ -55,19 +69,23 @@ The Owner first executed the merged v0.1.0 read-only Preview on the real KSH Wor
 - Weekly Popular: PASS, 16 valid records, HTTP 200;
 - WordPress version visibly observed: 7.1.2.
 
+That execution used the then-current `/Article/Days` Latest implementation. It is useful historical evidence for the Preview/acquisition/parser boundary, but it does **not** qualify the v0.4.0 semantic change that now binds Latest to the homepage `تازه‌ها` list.
+
 After merged PR #4, the Owner installed v0.2.1 and downloaded the plugin diagnostic JSON. That artifact observed:
 
 - WordPress 7.1.2 and PHP 8.3.33;
 - `event_registered=true`, recurrence `daily`;
-- `cron_execution_observed=true`;
+- `cron_execution_observed=true` in that historical diagnostic version;
 - one Cron-origin run with `overall_status=success`;
 - Latest candidate/local count 20;
 - Weekly Popular candidate/local count 16;
 - `observability_incomplete=false` and diagnostic state `CRON_EXECUTION_OBSERVED`.
 
-This proves the observed chain `WP-Cron → acquisition → parser/validation → independent local persistence → diagnostic persistence` for that execution. It does **not** guarantee future Cron firing or future Kanoon DOM/network stability.
+This proves the observed chain `WP-Cron → acquisition → parser/validation → independent local persistence → diagnostic persistence` for that historical execution. It does **not** guarantee future Cron firing, future Kanoon DOM/network stability, or the new homepage-Latest binding. Because that persisted run predates acquisition-contract provenance, the repaired v0.4.0 diagnostic classifies the surviving summary as `legacy_unknown_contract`; it remains readable historical evidence but does not make current-contract `cron_execution_observed` true.
 
-The Owner also installed v0.3.0 and rendered `[ksh_kanoon_articles]` on the real KSH site. Desktop and mobile captures showed both lists rendering, the intended two-column desktop arrangement, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. That observed placement/rendering path is therefore no longer wholly `NOT_PROVEN`. The captures also exposed two presentation issues now addressed in v0.3.1: repeated public Latest date metadata and default Grid stretching that made the shorter panel artificially tall. Final visual acceptance remains pending Owner revalidation of the refined version.
+The Owner also installed v0.3.0 and rendered `[ksh_kanoon_articles]` on the real KSH site. Desktop and mobile captures showed both lists rendering, the intended two-column desktop arrangement, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. v0.3.1 subsequently removed public per-item date metadata and default Grid equal-height stretching while preserving stored metadata.
+
+The exact v0.4.0 contract `kanoon-homepage-semantic-lists-v1` remains **NOT_PROVEN on the real KSH host** until the Owner installs the repaired build and the explicit current-contract qualification action succeeds there. Repository tests and GitHub Actions must not be reported as that real-host qualification. Current-contract Manual/Cron execution also remains unobserved until a persisted execution summary carrying that exact contract identity is produced on the real host.
 
 ## Development verification
 
@@ -83,7 +101,7 @@ Canonical verification:
 bash scripts/verify-foundation.sh
 ```
 
-The command runs repository/design integrity checks, PHP syntax validation, WordPress Coding Standards, and deterministic parser/orchestration/persistence/lifecycle/diagnostic/frontend tests. Development dependencies are Composer `require-dev` packages only; the production plugin has no Composer runtime dependency.
+The command runs repository/design integrity checks, PHP syntax validation, WordPress Coding Standards, and deterministic parser/orchestration/persistence/lifecycle/qualification/diagnostic/frontend tests. Development dependencies are Composer `require-dev` packages only; the production plugin has no Composer runtime dependency.
 
 Useful focused commands after `composer install`:
 
@@ -92,13 +110,25 @@ composer cs
 composer test
 ```
 
-Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. They cover Manual/Cron attribution, run correlation, separate latest Manual/Cron summaries, legacy-attempt compatibility, schedule-vs-execution semantics, read-only JSON generation/download, privacy exclusions, local-only frontend rendering/fail-soft behavior, output escaping, ordering/no-truncation, shortcode registration, and scoped responsive CSS contracts. They prove only the exercised deterministic behavior; they do not guarantee future Cron firing, future Kanoon HTML compatibility, or final authentic browser visual acceptance of v0.3.1.
+Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. Current coverage proves the homepage Latest semantic target, exclusion of unrelated/archive/foreign/malformed candidates, fail-closed semantic ambiguity, independent Latest/Weekly outcomes, preservation of complete source ordering in storage, the 15-per-list public cap, absence of public `date_context`, last-known-good preservation, current-contract qualification admission, stale scheduled-event blocking, failed qualification non-admission, Manual/Cron run-summary independence, contract-bound Manual/Cron and per-list-attempt provenance, legacy/stale/current evidence classification, schedule-vs-execution truthfulness, cross-contract correlation/incomplete-observability states, diagnostic privacy exclusions, degraded admin behavior, read-only diagnostics/export, local-only frontend rendering, output escaping, shortcode compatibility, and scoped responsive/font-inheritance CSS contracts. They prove only the exercised deterministic behavior; they do not qualify the real KSH host or guarantee future Cron firing, future Kanoon HTML compatibility, or authentic real-page visual acceptance of v0.4.0.
 
 ## Operational qualification workflow
 
-The v0.2.1 diagnostic has already established one successful real Cron-origin execution. The JSON download remains the preferred bounded support artifact because it is read-only and does not contact `kanoon.ir`.
+The historical v0.2.1 diagnostic established one successful real Cron-origin execution for the historical contract. The JSON download remains the preferred bounded support artifact because it is read-only and does not contact `kanoon.ir`.
 
-After this refinement is merged and v0.3.1 is installed, keep the existing `[ksh_kanoon_articles]` placement, verify both local lists still render without triggering acquisition, capture representative desktop/mobile results, confirm per-item date lines are absent, confirm the shorter desktop panel ends at its natural content height, confirm there is no horizontal overflow, and re-download the diagnostic JSON to verify stored snapshot metadata, scheduler state, and observability remain intact.
+After this repaired v0.4.0 build is installed by the Owner on KSH:
+
+1. keep the existing LKG snapshots and `[ksh_kanoon_articles]` placement intact;
+2. run ordinary **Preview/Test Connection** and confirm the homepage `تازه‌ها` semantic list and Weekly Popular both succeed; Preview alone must leave the contract unqualified;
+3. use **Tools → تأیید دریافت مقاله‌های کانون** to execute the explicit qualification action for `kanoon-homepage-semantic-lists-v1`;
+4. only after that action reports successful persisted qualification, verify that the daily event is admitted and run **Refresh Local Data Now**;
+5. verify a successful refresh updates local snapshots without visitor-time remote requests and that independent LKG behavior is preserved on a later list-specific failure;
+6. verify public output displays at most 15 items per list while stored/diagnostic counts may be higher;
+7. confirm article text resolves to the site's delivered `Vazirmatn` family when the exact `rezahh107/Vazir` frontend typography is enabled, while remaining readable if that companion is absent;
+8. verify desktop remains two-column with natural panel heights and mobile remains one-column with no horizontal overflow;
+9. download the diagnostic JSON and verify the current acquisition contract id, qualification status, Manual/Cron evidence provenance, scheduler state, and full local snapshot facts without public-only truncation.
+
+Until step 3 succeeds on the real KSH host, Manual/Cron writable acquisition for the v0.4.0 contract is intentionally blocked and real-host qualification remains `NOT_PROVEN`. Until a real Manual/Cron execution then persists evidence carrying the exact current contract id, current-contract operational execution evidence also remains `NOT_PROVEN`.
 
 ## Product direction
 

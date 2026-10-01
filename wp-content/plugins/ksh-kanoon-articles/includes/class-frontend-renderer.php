@@ -12,6 +12,8 @@ namespace KSH\KanoonArticles;
  */
 final class Frontend_Renderer {
 
+	const DISPLAY_LIMIT = 15;
+
 	/**
 	 * Local snapshot store.
 	 *
@@ -31,11 +33,13 @@ final class Frontend_Renderer {
 	/**
 	 * Render the complete public module, or fail softly when no valid list exists.
 	 *
+	 * The persisted snapshots remain complete; the display cap is presentation-only.
+	 *
 	 * @return string
 	 */
 	public function render() {
-		$latest = $this->snapshot_items( 'latest' );
-		$weekly = $this->snapshot_items( 'weekly_popular' );
+		$latest = array_slice( $this->snapshot_items( 'latest' ), 0, self::DISPLAY_LIMIT );
+		$weekly = array_slice( $this->snapshot_items( 'weekly_popular' ), 0, self::DISPLAY_LIMIT );
 		$lists  = array();
 
 		if ( ! empty( $latest ) ) {

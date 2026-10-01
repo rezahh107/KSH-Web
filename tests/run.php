@@ -1,8 +1,8 @@
 <?php
 /**
- * Deterministic parser/orchestration/persistence test runner.
+ * Deterministic parser/orchestration/persistence/presentation test runner.
  *
- * These fixtures and WordPress primitive stubs exercise repository logic only.
+ * Fixtures and WordPress primitive stubs exercise repository logic only.
  * They do not prove future WP-Cron execution or current production networking.
  */
 
@@ -18,6 +18,7 @@ use KSH\KanoonArticles\Refresh_Service;
 use KSH\KanoonArticles\Scheduler;
 use KSH\KanoonArticles\Shortcode;
 use KSH\KanoonArticles\Snapshot_Store;
+use KSH\KanoonArticles\Source_Config;
 
 $GLOBALS['ksh_test_actions']          = array();
 $GLOBALS['ksh_test_shortcodes']       = array();
@@ -182,109 +183,122 @@ function assert_true( $actual, string $message ): void {
 	assert_same( true, (bool) $actual, $message );
 }
 
+function homepage_html( int $latest_count = 2, int $weekly_count = 2, int $offset = 0 ): string {
+	$html = '<html><body><a href="#latest">تازه ها</a><a href="#weekly">پربازدید هفته</a><a href="#monthly">پربازدید ماه</a>';
+	$html .= '<div id="latest">';
+	for ( $i = 1; $i <= $latest_count; ++$i ) {
+		$html .= '<a href="/Article/' . ( 950000 + $offset + $i ) . '">تازه ' . $i . '</a>';
+	}
+	$html .= '<a href="/Article/Days">آرشیو تازه ها</a></div><div id="weekly">';
+	for ( $i = 1; $i <= $weekly_count; ++$i ) {
+		$html .= '<a href="/Article/' . ( 960000 + $offset + $i ) . '">هفته ' . $i . '</a>';
+	}
+	$html .= '</div><div id="monthly"><a href="/Article/' . ( 990000 + $offset ) . '">ماه</a></div></body></html>';
+	return $html;
+}
+
 $parser = new Article_Parser();
 
-$latest = $parser->parse_latest( fixture( 'latest-valid.html' ) );
-assert_same( 'success', $latest['status'], 'valid Latest succeeds' );
-assert_same( 2, $latest['count'], 'Latest rejects invalid/foreign candidates' );
-assert_same( 'گفت و گو محمد رهگشای با رامتین بهرامی قهرمان پیشرفت', $latest['items'][0]['title'], 'Latest strips bounded time/view suffix' );
-assert_same( 'https://www.kanoon.ir/Article/474577', $latest['items'][0]['url'], 'Latest canonicalizes relative article URL' );
-assert_same( 'https://www.kanoon.ir/Article/474578', $latest['items'][1]['url'], 'Latest preserves source ordering' );
-assert_same( 'شنبه 4 مهر 1405', $latest['items'][0]['date_context'], 'Latest propagates reliable day context' );
+/* Source + semantic parser contract. */
+assert_same( 'https://www.kanoon.ir/', Source_Config::url( 'latest' ), 'Latest source is the Kanoon homepage' );
+assert_same( 'https://www.kanoon.ir/', Source_Config::url( 'weekly_popular' ), 'Weekly source remains the Kanoon homepage' );
+assert_same( '', Source_Config::url( 'unknown' ), 'unknown source has no remote URL' );
 
-$multi_day = $parser->parse_latest( fixture( 'latest-multi-day.html' ) );
-assert_same( 'success', $multi_day['status'], 'multi-day Latest succeeds' );
-assert_same( 'شنبه 4 مهر 1405', $multi_day['date_context'], 'Latest summary date context remains the initial boundary' );
-assert_same( 5, $multi_day['count'], 'later date headings do not terminate Latest traversal' );
+$latest = $parser->parse_latest( fixture( 'home-valid.html' ) );
+assert_same( 'success', $latest['status'], 'semantic homepage Latest succeeds' );
+assert_same( 2, $latest['count'], 'Latest keeps only valid articles inside its semantic target' );
 assert_same(
-	array(
-		'https://www.kanoon.ir/Article/910001',
-		'https://www.kanoon.ir/Article/910002',
-		'https://www.kanoon.ir/Article/910003',
-		'https://www.kanoon.ir/Article/910004',
-		'https://www.kanoon.ir/Article/910005',
-	),
-	array_column( $multi_day['items'], 'url' ),
-	'Latest preserves source order across date transitions'
+	array( 'https://www.kanoon.ir/Article/500001', 'https://www.kanoon.ir/Article/500002' ),
+	array_column( $latest['items'], 'url' ),
+	'Latest excludes outside-panel, archive, foreign, malformed, and duplicate candidates while preserving order'
 );
-assert_same( 'شنبه 4 مهر 1405', $multi_day['items'][0]['date_context'], 'first-day article receives first date context' );
-assert_same( 'شنبه 4 مهر 1405', $multi_day['items'][1]['date_context'], 'non-date heading does not change current date context' );
-assert_same( 'یکشنبه 5 مهر 1405', $multi_day['items'][2]['date_context'], 'second-day article receives second date context' );
-assert_same( 'یکشنبه 5 مهر 1405', $multi_day['items'][3]['date_context'], 'second date context remains active until next valid date heading' );
-assert_same( 'دوشنبه 6 مهر 1405', $multi_day['items'][4]['date_context'], 'subsequent valid date headings rebind context repeatedly' );
+assert_same( '', $latest['date_context'], 'homepage Latest does not invent a summary date context' );
+assert_same( '', $latest['items'][0]['date_context'], 'homepage Latest does not invent per-item date context' );
 
-$limit_html = '<html><body><h3>شنبه 4 مهر 1405</h3>';
-for ( $i = 1; $i <= 10; ++$i ) {
-	$limit_html .= '<a href="/Article/' . ( 930000 + $i ) . '">روز اول ' . $i . '</a>';
-}
-$limit_html .= '<h3>یکشنبه 5 مهر 1405</h3>';
-for ( $i = 11; $i <= 25; ++$i ) {
-	$limit_html .= '<a href="/Article/' . ( 930000 + $i ) . '">روز دوم ' . $i . '</a>';
-}
-$limit_html .= '</body></html>';
-$limited     = $parser->parse_latest( $limit_html );
-assert_same( 20, $limited['count'], 'Latest 20-item limit remains effective across date transitions' );
-assert_same( 'https://www.kanoon.ir/Article/930020', $limited['items'][19]['url'], 'Latest limit preserves the first 20 source-ordered articles' );
-assert_same( 'یکشنبه 5 مهر 1405', $limited['items'][19]['date_context'], 'Latest limit keeps the nearest preceding valid date context' );
+$many_latest = $parser->parse_latest( homepage_html( 24, 2 ) );
+assert_same( 'success', $many_latest['status'], 'Latest semantic parser accepts a list longer than public display cap' );
+assert_same( 24, $many_latest['count'], 'Latest acquisition is not truncated to the 15-item presentation limit' );
+assert_same( 'https://www.kanoon.ir/Article/950024', $many_latest['items'][23]['url'], 'Latest keeps complete source ordering beyond item 15' );
 
-$joining = $parser->parse_latest(
-	'<html><body><h3>شنبه 4 مهر 1405</h3>' .
-	'<a href="/Article/474579">گفت‌وگوی قلم‌چی دقایقی قبل 1 بازدید</a></body></html>'
+$zwnj = $parser->parse_latest(
+	'<a href="#latest">تازه‌ها</a><div id="latest"><a href="/Article/1">گفت‌وگوی قلم‌چی دقایقی قبل 1 بازدید</a></div>'
 );
-assert_same( 'گفت‌وگوی قلم‌چی', $joining['items'][0]['title'], 'Latest preserves Persian ZWNJ in normalized titles' );
+assert_same( 'success', $zwnj['status'], 'Latest accepts the ZWNJ semantic-label spelling' );
+assert_same( 'گفت‌وگوی قلم‌چی', $zwnj['items'][0]['title'], 'Latest preserves Persian joining while stripping bounded time/view suffix' );
+
+$duplicate_latest_label = $parser->parse_latest(
+	'<a href="#a">تازه ها</a><a href="#b">تازه‌ها</a><div id="a"><a href="/Article/1">الف</a></div><div id="b"><a href="/Article/2">ب</a></div>'
+);
+assert_same( 'ambiguous', $duplicate_latest_label['status'], 'duplicate Latest semantic labels fail closed' );
+assert_same( 'latest_tab_label_not_unique', $duplicate_latest_label['reason'], 'duplicate Latest label has bounded diagnostic reason' );
+
+$missing_latest_target = $parser->parse_latest( '<a href="#missing">تازه ها</a>' );
+assert_same( 'ambiguous', $missing_latest_target['status'], 'missing Latest target fails closed' );
+assert_same( 'latest_tab_target_missing', $missing_latest_target['reason'], 'missing Latest target has bounded diagnostic reason' );
+
+$colliding_latest_target = $parser->parse_latest(
+	'<a href="#shared">تازه ها</a><a href="#shared">پربازدید هفته</a><a href="#monthly">پربازدید ماه</a>' .
+	'<div id="shared"><a href="/Article/1">مشترک</a></div><div id="monthly"></div>'
+);
+assert_same( 'ambiguous', $colliding_latest_target['status'], 'Latest target collision with a sibling semantic tab fails closed' );
+assert_same( 'latest_tab_target_collision', $colliding_latest_target['reason'], 'Latest target collision has bounded diagnostic reason' );
+
+$old_days_shape = $parser->parse_latest( fixture( 'latest-valid.html' ) );
+assert_same( 'ambiguous', $old_days_shape['status'], 'old /Article/Days-shaped HTML is not a fallback semantic source' );
+assert_same( 'latest_tab_label_not_unique', $old_days_shape['reason'], 'old Latest source fails because semantic homepage tab is absent' );
+
+$latest_zero = $parser->parse_latest(
+	'<a href="#latest">تازه ها</a><div id="latest"><a href="/Article/Days">آرشیو</a><a href="https://example.com/Article/1">غریبه</a></div>'
+);
+assert_same( 'failure', $latest_zero['status'], 'semantic Latest with zero valid article links fails' );
+assert_same( 'latest_zero_valid_items', $latest_zero['reason'], 'zero-item semantic Latest has bounded reason' );
 
 $weekly = $parser->parse_weekly_popular( fixture( 'home-valid.html' ) );
-assert_same( 'success', $weekly['status'], 'valid Weekly Popular succeeds' );
+assert_same( 'success', $weekly['status'], 'Weekly Popular remains valid' );
 assert_same( 2, $weekly['count'], 'Weekly rejects foreign candidate and keeps valid items' );
-assert_same( 'https://www.kanoon.ir/Article/467565', $weekly['items'][0]['url'], 'Weekly first item preserved' );
-assert_same( 'https://www.kanoon.ir/Article/467566', $weekly['items'][1]['url'], 'Weekly canonicalizes host/trailing slash' );
+assert_same( 'https://www.kanoon.ir/Article/467565', $weekly['items'][0]['url'], 'Weekly source ordering remains intact' );
+assert_same( 'https://www.kanoon.ir/Article/467566', $weekly['items'][1]['url'], 'Weekly canonicalizes Kanoon host and trailing slash' );
 
-$ambiguous = $parser->parse_weekly_popular( fixture( 'home-ambiguous.html' ) );
-assert_same( 'ambiguous', $ambiguous['status'], 'Weekly/Monthly target collision is ambiguous' );
-assert_same( 'weekly_monthly_target_collision', $ambiguous['reason'], 'ambiguity reason is bounded' );
-
-$empty_source = $parser->parse_latest( '' );
-assert_same( 'failure', $empty_source['status'], 'empty Latest source fails' );
-assert_same( 'empty_html', $empty_source['reason'], 'empty Latest source reports reason' );
-
-$latest_empty = $parser->parse_latest( fixture( 'latest-empty.html' ) );
-assert_same( 'failure', $latest_empty['status'], 'zero-item Latest is not valid empty success' );
-assert_same( 'latest_zero_valid_items', $latest_empty['reason'], 'zero-item Latest reports reason' );
-
-$latest_missing_boundary = $parser->parse_latest( '<html><body><a href="/Article/1">بدون مرز روز</a></body></html>' );
-assert_same( 'failure', $latest_missing_boundary['status'], 'Latest missing semantic date boundary fails' );
-assert_same( 'latest_date_boundary_missing', $latest_missing_boundary['reason'], 'missing Latest boundary reports reason' );
+$weekly_ambiguous = $parser->parse_weekly_popular( fixture( 'home-ambiguous.html' ) );
+assert_same( 'ambiguous', $weekly_ambiguous['status'], 'Weekly/Monthly target collision remains ambiguous' );
+assert_same( 'weekly_monthly_target_collision', $weekly_ambiguous['reason'], 'Weekly collision reason remains bounded' );
+assert_same( 'success', $parser->parse_latest( fixture( 'home-ambiguous.html' ) )['status'], 'Latest can succeed independently when Weekly is ambiguous' );
 
 $weekly_bad = $parser->parse_weekly_popular( fixture( 'home-malformed-items.html' ) );
 assert_same( 'failure', $weekly_bad['status'], 'Weekly with only malformed candidates fails' );
 assert_same( 'weekly_zero_valid_items', $weekly_bad['reason'], 'malformed Weekly reports zero valid items' );
 
-$fetch = static function ( string $url ): array {
-	if ( false !== strpos( $url, '/Article/Days' ) ) {
-		return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'latest-valid.html' ), 'reason' => '' );
+/* Preview keeps same-URL fetches independent rather than introducing shared-fetch state. */
+$fetch_calls = 0;
+$latest_fail_weekly_ok = static function ( string $url ) use ( &$fetch_calls ): array {
+	++$fetch_calls;
+	assert_same( 'https://www.kanoon.ir/', $url, 'each Preview acquisition uses homepage URL' );
+	if ( 1 === $fetch_calls ) {
+		return array( 'ok' => true, 'http_code' => 200, 'body' => '<a href="#a">تازه ها</a><a href="#b">تازه‌ها</a><div id="a"></div><div id="b"></div>', 'reason' => '' );
+	}
+	return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'home-valid.html' ), 'reason' => '' );
+};
+$preview = new Preview_Service( $latest_fail_weekly_ok, $parser );
+$run     = $preview->run();
+assert_same( 2, $fetch_calls, 'Preview performs two independently attributable homepage fetches' );
+assert_same( 'ambiguous', $run['latest']['status'], 'Latest semantic failure remains independent' );
+assert_same( 'success', $run['weekly_popular']['status'], 'Weekly can succeed when Latest semantic parsing fails' );
+assert_same( 'partial', $run['overall_status'], 'mixed Preview outcomes are partial' );
+
+$fetch_calls = 0;
+$latest_ok_weekly_fail = static function ( string $url ) use ( &$fetch_calls ): array {
+	++$fetch_calls;
+	if ( 1 === $fetch_calls ) {
+		return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'home-valid.html' ), 'reason' => '' );
 	}
 	return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'home-ambiguous.html' ), 'reason' => '' );
 };
+$run = ( new Preview_Service( $latest_ok_weekly_fail, $parser ) )->run();
+assert_same( 'success', $run['latest']['status'], 'Latest can succeed when Weekly parsing fails' );
+assert_same( 'ambiguous', $run['weekly_popular']['status'], 'Weekly ambiguity remains independently reportable' );
+assert_same( 'partial', $run['overall_status'], 'reverse mixed outcome is partial' );
 
-$preview = new Preview_Service( $fetch, $parser );
-$run     = $preview->run();
-assert_same( 'success', $run['latest']['status'], 'Latest remains independently successful' );
-assert_same( 'ambiguous', $run['weekly_popular']['status'], 'Weekly remains independently ambiguous' );
-assert_same( 'partial', $run['overall_status'], 'one success plus one ambiguous is never full success' );
-
-$fetch_with_weekly_failure = static function ( string $url ): array {
-	if ( false !== strpos( $url, '/Article/Days' ) ) {
-		return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'latest-valid.html' ), 'reason' => '' );
-	}
-	return array( 'ok' => false, 'http_code' => 503, 'body' => '', 'reason' => 'http_error' );
-};
-
-$partial_failure = ( new Preview_Service( $fetch_with_weekly_failure, $parser ) )->run();
-assert_same( 'success', $partial_failure['latest']['status'], 'Latest success survives independent Weekly fetch failure' );
-assert_same( 'failure', $partial_failure['weekly_popular']['status'], 'Weekly fetch failure is reported independently' );
-assert_same( 'partial', $partial_failure['overall_status'], 'independent list failure never becomes full success' );
-
-/* Persistence + refresh contract. */
+/* Persistence + refresh preserve full snapshots and last-known-good semantics. */
 $option_values   = array();
 $option_autoload = array();
 $get_option      = static function ( $name, $default = false ) use ( &$option_values ) {
@@ -303,100 +317,81 @@ $update_option   = static function ( $name, $value, $autoload = null ) use ( &$o
 	$option_autoload[ $name ] = $autoload;
 	return true;
 };
-$store           = new Snapshot_Store( $get_option, $add_option, $update_option );
-$fetch_mode      = 'initial';
-$fetch_count     = 0;
-$refresh_fetch   = static function ( string $url ) use ( &$fetch_mode, &$fetch_count ): array {
+$store       = new Snapshot_Store( $get_option, $add_option, $update_option );
+$fetch_mode  = 'initial';
+$fetch_count = 0;
+$refresh_fetch = static function ( string $url ) use ( &$fetch_mode, &$fetch_count ): array {
 	++$fetch_count;
-	$is_latest = false !== strpos( $url, '/Article/Days' );
+	$is_latest_call = 1 === ( $fetch_count % 2 );
 
-	if ( 'latest_fail' === $fetch_mode && $is_latest ) {
+	if ( 'latest_fail' === $fetch_mode && $is_latest_call ) {
 		return array( 'ok' => false, 'http_code' => 503, 'body' => '', 'reason' => 'http_error' );
 	}
-	if ( 'weekly_ambiguous' === $fetch_mode && ! $is_latest ) {
+	if ( 'weekly_ambiguous' === $fetch_mode && ! $is_latest_call ) {
 		return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'home-ambiguous.html' ), 'reason' => '' );
 	}
 
-	if ( $is_latest ) {
-		if ( 'initial' === $fetch_mode ) {
-			$body = fixture( 'latest-valid.html' );
-		} else {
-			$body = '<html><body><h3>سه شنبه 7 مهر 1405</h3>' .
-				'<a href="/Article/950001">تازه جدید اول</a><a href="/Article/950002">تازه جدید دوم</a></body></html>';
-		}
-		return array( 'ok' => true, 'http_code' => 200, 'body' => $body, 'reason' => '' );
-	}
-
-	$body = 'initial' === $fetch_mode ? fixture( 'home-valid.html' ) :
-		'<html><body><a href="#weekly">پربازدید هفته</a><a href="#monthly">پربازدید ماه</a>' .
-		'<div id="weekly"><a href="/Article/960001">هفته جدید اول</a><a href="/Article/960002">هفته جدید دوم</a></div>' .
-		'<div id="monthly"><a href="/Article/960099">ماهانه</a></div></body></html>';
+	$body = 'initial' === $fetch_mode ? homepage_html( 21, 17 ) : homepage_html( 22, 18, 1000 );
 	return array( 'ok' => true, 'http_code' => 200, 'body' => $body, 'reason' => '' );
 };
-$clock_tick      = 0;
-$clock           = static function () use ( &$clock_tick ): string {
+$clock_tick = 0;
+$clock      = static function () use ( &$clock_tick ): string {
 	++$clock_tick;
-	return sprintf( '2026-09-27T00:00:%02d+00:00', $clock_tick );
+	return sprintf( '2026-09-30T12:00:%02d+00:00', $clock_tick );
 };
 $refresh_preview = new Preview_Service( $refresh_fetch, $parser );
 $refresh         = new Refresh_Service( $refresh_preview, $store, $clock );
 
 $first_refresh = $refresh->run();
-assert_same( 'success', $first_refresh['overall_status'], 'first valid refresh updates both lists' );
-assert_true( $first_refresh['latest']['attempt_recorded'], 'normal Latest attempt metadata is recorded' );
-assert_true( $first_refresh['weekly_popular']['attempt_recorded'], 'normal Weekly attempt metadata is recorded' );
-assert_same( '', $first_refresh['latest']['attempt_reason'], 'normal attempt persistence has no diagnostic failure reason' );
-assert_true( null !== $store->get_snapshot( 'latest' ), 'first successful Latest creates a snapshot' );
-assert_true( null !== $store->get_snapshot( 'weekly_popular' ), 'first successful Weekly creates a snapshot' );
-assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LATEST_SNAPSHOT ], 'Latest snapshot is non-autoloaded' );
-assert_same( false, $option_autoload[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ], 'Weekly snapshot is non-autoloaded' );
-assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LATEST_ATTEMPT ], 'Latest attempt is non-autoloaded' );
-assert_same( false, $option_autoload[ Snapshot_Store::OPTION_WEEKLY_ATTEMPT ], 'Weekly attempt is non-autoloaded' );
-
-$initial_latest = $store->get_snapshot( 'latest' );
-$initial_weekly = $store->get_snapshot( 'weekly_popular' );
-assert_same(
-	array( 'schema_version', 'source', 'source_url', 'items', 'count', 'updated_at', 'date_context' ),
-	array_keys( $initial_latest ),
-	'snapshot persists only bounded normalized metadata'
-);
-assert_same( array( 'title', 'url', 'date_context' ), array_keys( $initial_latest['items'][0] ), 'persisted items omit request/raw diagnostic data' );
-assert_same( 'شنبه 4 مهر 1405', $initial_latest['items'][0]['date_context'], 'snapshot storage preserves Latest date_context metadata' );
-assert_same(
-	array( 'https://www.kanoon.ir/Article/474577', 'https://www.kanoon.ir/Article/474578' ),
-	array_column( $initial_latest['items'], 'url' ),
-	'persisted Latest ordering remains source ordering'
-);
+assert_same( 'success', $first_refresh['overall_status'], 'first valid refresh updates both homepage lists' );
+assert_same( 21, $store->get_snapshot( 'latest' )['count'], 'Latest snapshot preserves more than 15 valid items' );
+assert_same( 17, $store->get_snapshot( 'weekly_popular' )['count'], 'Weekly snapshot preserves more than 15 valid items' );
+assert_same( '', $store->get_snapshot( 'latest' )['date_context'], 'Latest snapshot keeps schema-compatible empty date_context' );
+assert_same( '', $store->get_snapshot( 'latest' )['items'][0]['date_context'], 'Latest item keeps schema-compatible empty date_context' );
+assert_same( Source_Config::LATEST_URL, $store->get_snapshot( 'latest' )['source_url'], 'Latest snapshot records homepage source URL' );
+assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LATEST_SNAPSHOT ], 'Latest snapshot stays non-autoloaded' );
+assert_same( false, $option_autoload[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ], 'Weekly snapshot stays non-autoloaded' );
+assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LATEST_ATTEMPT ], 'Latest attempt stays non-autoloaded' );
+assert_same( false, $option_autoload[ Snapshot_Store::OPTION_WEEKLY_ATTEMPT ], 'Weekly attempt stays non-autoloaded' );
+assert_same( 'https://www.kanoon.ir/Article/950001', $store->get_snapshot( 'latest' )['items'][0]['url'], 'snapshot ordering starts with first semantic Latest article' );
+assert_same( 'https://www.kanoon.ir/Article/950021', $store->get_snapshot( 'latest' )['items'][20]['url'], 'snapshot ordering remains intact beyond renderer limit' );
 
 $fetch_mode = 'replace';
 $replaced   = $refresh->run();
-assert_same( 'success', $replaced['overall_status'], 'valid refresh replaces both prior snapshots' );
-assert_same( 'https://www.kanoon.ir/Article/950001', $store->get_snapshot( 'latest' )['items'][0]['url'], 'valid Latest refresh replaces prior Latest snapshot' );
-assert_same( 'https://www.kanoon.ir/Article/960001', $store->get_snapshot( 'weekly_popular' )['items'][0]['url'], 'valid Weekly refresh replaces prior Weekly snapshot' );
+assert_same( 'success', $replaced['overall_status'], 'later valid refresh replaces both snapshots' );
+assert_same( 'https://www.kanoon.ir/Article/951001', $store->get_snapshot( 'latest' )['items'][0]['url'], 'valid Latest candidate replaces previous Latest snapshot' );
+assert_same( 'https://www.kanoon.ir/Article/961001', $store->get_snapshot( 'weekly_popular' )['items'][0]['url'], 'valid Weekly candidate replaces previous Weekly snapshot' );
 
-/* Attempt metadata failure is operationally degraded without rolling back valid snapshots. */
-$attempt_fail_values = array(
-	Snapshot_Store::OPTION_LATEST_ATTEMPT => array(
-		'schema_version'   => 1,
-		'source'           => 'latest',
-		'attempted_at'     => '2026-09-26T23:00:00+00:00',
-		'candidate_status' => 'success',
-		'http_code'        => 200,
-		'reason'           => '',
-		'action'           => 'updated',
-	),
-);
-$attempt_fail_get = static function ( $name, $default = false ) use ( &$attempt_fail_values ) {
+$latest_before_failure = $store->get_snapshot( 'latest' );
+$fetch_mode            = 'latest_fail';
+$latest_failed         = $refresh->run();
+assert_same( 'partial', $latest_failed['overall_status'], 'failed Latest does not block healthy Weekly refresh' );
+assert_same( 'preserved_previous', $latest_failed['latest']['action'], 'failed Latest refresh preserves prior valid snapshot' );
+assert_same( $latest_before_failure, $store->get_snapshot( 'latest' ), 'failed Latest refresh cannot replace or erase LKG data' );
+assert_same( 'failure', $store->get_attempt( 'latest' )['candidate_status'], 'failed Latest remains diagnosable' );
+assert_same( 'http_error', $store->get_attempt( 'latest' )['reason'], 'Latest failure reason is preserved' );
+
+$weekly_before_failure = $store->get_snapshot( 'weekly_popular' );
+$fetch_mode            = 'weekly_ambiguous';
+$weekly_failed         = $refresh->run();
+assert_same( 'partial', $weekly_failed['overall_status'], 'ambiguous Weekly does not block healthy Latest refresh' );
+assert_same( 'preserved_previous', $weekly_failed['weekly_popular']['action'], 'ambiguous Weekly preserves prior valid snapshot' );
+assert_same( $weekly_before_failure, $store->get_snapshot( 'weekly_popular' ), 'ambiguous Weekly cannot replace or erase LKG data' );
+assert_same( 'ambiguous', $store->get_attempt( 'weekly_popular' )['candidate_status'], 'Weekly ambiguity remains diagnosable' );
+
+/* Persistence-write failures remain distinct and cannot corrupt healthy list state. */
+$attempt_fail_values = array();
+$attempt_fail_get    = static function ( $name, $default = false ) use ( &$attempt_fail_values ) {
 	return array_key_exists( $name, $attempt_fail_values ) ? $attempt_fail_values[ $name ] : $default;
 };
-$attempt_fail_add = static function ( $name, $value ) use ( &$attempt_fail_values ) {
+$attempt_fail_add = static function ( $name, $value, $deprecated = '', $autoload = null ) use ( &$attempt_fail_values ) {
 	if ( Snapshot_Store::OPTION_LATEST_ATTEMPT === $name ) {
 		return false;
 	}
 	$attempt_fail_values[ $name ] = $value;
 	return true;
 };
-$attempt_fail_update = static function ( $name, $value ) use ( &$attempt_fail_values ) {
+$attempt_fail_update = static function ( $name, $value, $autoload = null ) use ( &$attempt_fail_values ) {
 	if ( Snapshot_Store::OPTION_LATEST_ATTEMPT === $name ) {
 		return false;
 	}
@@ -408,52 +403,29 @@ $fetch_mode         = 'replace';
 $attempt_fail_run   = new Refresh_Service(
 	$refresh_preview,
 	$attempt_fail_store,
-	static function (): string { return '2026-09-27T02:00:00+00:00'; }
+	static function (): string { return '2026-09-30T12:30:00+00:00'; }
 );
 $attempt_fail_result = $attempt_fail_run->run();
-assert_same( 'degraded', $attempt_fail_result['overall_status'], 'one failed attempt-status write prevents full refresh success' );
-assert_same( 'updated', $attempt_fail_result['latest']['action'], 'Latest snapshot action remains updated when only attempt metadata fails' );
-assert_same( 'updated', $attempt_fail_result['weekly_popular']['action'], 'Weekly snapshot still updates independently' );
-assert_same( false, $attempt_fail_result['latest']['attempt_recorded'], 'Latest exposes failed attempt persistence' );
-assert_same( 'attempt_write_failed', $attempt_fail_result['latest']['attempt_reason'], 'Latest exposes bounded attempt-write failure reason' );
-assert_same( true, $attempt_fail_result['weekly_popular']['attempt_recorded'], 'Weekly attempt persistence remains independently successful' );
-assert_same( 'https://www.kanoon.ir/Article/950001', $attempt_fail_store->get_snapshot( 'latest' )['items'][0]['url'], 'valid Latest snapshot is not rolled back after attempt write failure' );
-assert_same( 'https://www.kanoon.ir/Article/960001', $attempt_fail_store->get_snapshot( 'weekly_popular' )['items'][0]['url'], 'both valid snapshots remain updated in degraded operation' );
-assert_same( '2026-09-26T23:00:00+00:00', $attempt_fail_store->get_attempt( 'latest' )['attempted_at'], 'failed attempt write preserves the previous latest recorded attempt' );
+assert_same( 'degraded', $attempt_fail_result['overall_status'], 'attempt metadata write failure prevents false full-success status' );
+assert_same( 'updated', $attempt_fail_result['latest']['action'], 'Latest snapshot may update even when its attempt metadata write fails' );
+assert_same( false, $attempt_fail_result['latest']['attempt_recorded'], 'Latest exposes attempt metadata write failure' );
+assert_same( 'attempt_write_failed', $attempt_fail_result['latest']['attempt_reason'], 'attempt metadata write failure keeps bounded reason' );
+assert_same( true, $attempt_fail_result['weekly_popular']['attempt_recorded'], 'Weekly attempt metadata remains independently writable' );
+assert_true( null !== $attempt_fail_store->get_snapshot( 'latest' ), 'attempt metadata failure does not roll back a valid Latest snapshot' );
+assert_true( null !== $attempt_fail_store->get_snapshot( 'weekly_popular' ), 'attempt metadata failure does not roll back a valid Weekly snapshot' );
 
-$attempt_fail_scheduler = new Scheduler(
-	static function () { return false; },
-	static function () { return true; },
-	static function () { return 1; },
-	static function () { return 1000; }
-);
-$attempt_fail_admin = new Admin_Page( $refresh_preview, $attempt_fail_run, $attempt_fail_store, $attempt_fail_scheduler );
-$_SERVER['REQUEST_METHOD'] = 'POST';
-$_POST['ksh_action']       = 'refresh';
-ob_start();
-$attempt_fail_admin->render();
-$degraded_html = ob_get_clean();
-assert_true( false !== strpos( $degraded_html, 'Refresh ناقص عملیاتی' ), 'manual refresh renders degraded operational warning' );
-assert_true( false !== strpos( $degraded_html, 'تازه‌ها — ثبت وضعیت تلاش:' ), 'manual refresh identifies the list whose attempt record failed' );
-assert_true( false !== strpos( $degraded_html, 'attempt_write_failed' ), 'manual refresh exposes bounded attempt-write failure reason' );
-assert_same( false, false !== strpos( $degraded_html, 'Refresh کامل:' ), 'degraded manual refresh cannot render full-success wording' );
-assert_true( false !== strpos( $degraded_html, 'آخرین تلاش ثبت‌شده' ), 'persistent status truthfully labels latest recorded attempt semantics' );
-unset( $_POST['ksh_action'] );
-$_SERVER['REQUEST_METHOD'] = 'GET';
-
-/* Snapshot-write failure remains distinct from attempt-write failure. */
 $snapshot_fail_values = array();
 $snapshot_fail_get    = static function ( $name, $default = false ) use ( &$snapshot_fail_values ) {
 	return array_key_exists( $name, $snapshot_fail_values ) ? $snapshot_fail_values[ $name ] : $default;
 };
-$snapshot_fail_add    = static function ( $name, $value ) use ( &$snapshot_fail_values ) {
+$snapshot_fail_add = static function ( $name, $value, $deprecated = '', $autoload = null ) use ( &$snapshot_fail_values ) {
 	if ( Snapshot_Store::OPTION_LATEST_SNAPSHOT === $name ) {
 		return false;
 	}
 	$snapshot_fail_values[ $name ] = $value;
 	return true;
 };
-$snapshot_fail_update = static function ( $name, $value ) use ( &$snapshot_fail_values ) {
+$snapshot_fail_update = static function ( $name, $value, $autoload = null ) use ( &$snapshot_fail_values ) {
 	if ( Snapshot_Store::OPTION_LATEST_SNAPSHOT === $name ) {
 		return false;
 	}
@@ -461,138 +433,30 @@ $snapshot_fail_update = static function ( $name, $value ) use ( &$snapshot_fail_
 	return true;
 };
 $snapshot_fail_store  = new Snapshot_Store( $snapshot_fail_get, $snapshot_fail_add, $snapshot_fail_update );
-$fetch_mode           = 'replace';
 $snapshot_fail_run    = new Refresh_Service(
 	$refresh_preview,
 	$snapshot_fail_store,
-	static function (): string { return '2026-09-27T03:00:00+00:00'; }
+	static function (): string { return '2026-09-30T12:31:00+00:00'; }
 );
 $snapshot_fail_result = $snapshot_fail_run->run();
-assert_same( 'partial', $snapshot_fail_result['overall_status'], 'snapshot write failure keeps existing partial semantics when attempts record successfully' );
-assert_same( 'no_valid_snapshot_available', $snapshot_fail_result['latest']['action'], 'failed Latest snapshot write does not redefine action as updated' );
-assert_same( 'snapshot_write_failed', $snapshot_fail_result['latest']['reason'], 'snapshot write failure retains its distinct reason' );
-assert_same( true, $snapshot_fail_result['latest']['attempt_recorded'], 'snapshot write failure can still record attempt metadata successfully' );
-assert_same( '', $snapshot_fail_result['latest']['attempt_reason'], 'snapshot write failure is distinct from attempt write failure' );
-assert_same( 'updated', $snapshot_fail_result['weekly_popular']['action'], 'Weekly snapshot remains independently updatable during Latest snapshot write failure' );
+assert_same( 'partial', $snapshot_fail_result['overall_status'], 'Latest snapshot write failure leaves independently healthy Weekly outcome partial' );
+assert_same( 'no_valid_snapshot_available', $snapshot_fail_result['latest']['action'], 'failed first Latest snapshot write cannot claim updated state' );
+assert_same( 'snapshot_write_failed', $snapshot_fail_result['latest']['reason'], 'snapshot write failure keeps bounded reason' );
+assert_same( true, $snapshot_fail_result['latest']['attempt_recorded'], 'snapshot write failure can still be recorded diagnostically' );
+assert_same( 'updated', $snapshot_fail_result['weekly_popular']['action'], 'Weekly snapshot remains independently updatable when Latest write fails' );
 
-$latest_before_failure = $store->get_snapshot( 'latest' );
-$fetch_mode            = 'latest_fail';
-$partial_latest_fail   = $refresh->run();
-assert_same( 'partial', $partial_latest_fail['overall_status'], 'one healthy list may advance while failed Latest preserves old data' );
-assert_same( 'preserved_previous', $partial_latest_fail['latest']['action'], 'failed Latest preserves previous snapshot' );
-assert_same( $latest_before_failure, $store->get_snapshot( 'latest' ), 'failed Latest cannot erase or replace previous Latest snapshot' );
-assert_same( 'failure', $store->get_attempt( 'latest' )['candidate_status'], 'failed attempt status is recorded independently' );
-assert_same( 'http_error', $store->get_attempt( 'latest' )['reason'], 'bounded failure reason is recorded without changing snapshot' );
-
-$weekly_before_ambiguous = $store->get_snapshot( 'weekly_popular' );
-$fetch_mode              = 'weekly_ambiguous';
-$partial_weekly_ambig    = $refresh->run();
-assert_same( 'partial', $partial_weekly_ambig['overall_status'], 'healthy Latest advances while ambiguous Weekly preserves old data' );
-assert_same( 'preserved_previous', $partial_weekly_ambig['weekly_popular']['action'], 'ambiguous Weekly preserves previous snapshot' );
-assert_same( $weekly_before_ambiguous, $store->get_snapshot( 'weekly_popular' ), 'ambiguous Weekly cannot erase or replace prior snapshot' );
-assert_same( 'ambiguous', $store->get_attempt( 'weekly_popular' )['candidate_status'], 'ambiguous Weekly attempt remains diagnosable' );
-
-/* No previous snapshot + invalid candidates never fabricate local data. */
-$empty_values = array();
-$empty_get    = static function ( $name, $default = false ) use ( &$empty_values ) {
-	return array_key_exists( $name, $empty_values ) ? $empty_values[ $name ] : $default;
-};
-$empty_add    = static function ( $name, $value ) use ( &$empty_values ) {
-	$empty_values[ $name ] = $value;
-	return true;
-};
-$empty_update = static function ( $name, $value ) use ( &$empty_values ) {
-	$empty_values[ $name ] = $value;
-	return true;
-};
-$empty_store  = new Snapshot_Store( $empty_get, $empty_add, $empty_update );
-$bad_fetch    = static function ( string $url ): array {
-	if ( false !== strpos( $url, '/Article/Days' ) ) {
-		return array( 'ok' => false, 'http_code' => 500, 'body' => '', 'reason' => 'http_error' );
-	}
-	return array( 'ok' => true, 'http_code' => 200, 'body' => fixture( 'home-ambiguous.html' ), 'reason' => '' );
-};
-$empty_refresh = new Refresh_Service( new Preview_Service( $bad_fetch, $parser ), $empty_store, static function (): string { return '2026-09-27T01:00:00+00:00'; } );
-$empty_result  = $empty_refresh->run();
-assert_same( 'no_valid_snapshot_available', $empty_result['latest']['action'], 'failed first Latest does not fabricate local data' );
-assert_same( 'no_valid_snapshot_available', $empty_result['weekly_popular']['action'], 'ambiguous first Weekly does not fabricate local data' );
-assert_same( null, $empty_store->get_snapshot( 'latest' ), 'no invalid Latest snapshot is written' );
-assert_same( null, $empty_store->get_snapshot( 'weekly_popular' ), 'no invalid Weekly snapshot is written' );
-
-/* Manual and cron wiring share one canonical Refresh_Service while preserving explicit origin. */
-$GLOBALS['ksh_test_actions'] = array();
-$schedule_next = false;
-$scheduled_at  = null;
-$cleared       = false;
-$scheduler     = new Scheduler(
-	static function () use ( &$schedule_next ) { return $schedule_next; },
-	static function ( $timestamp, $recurrence, $hook ) use ( &$schedule_next, &$scheduled_at ) {
-		$scheduled_at  = array( $timestamp, $recurrence, $hook );
-		$schedule_next = $timestamp;
-		return true;
-	},
-	static function () use ( &$cleared ) { $cleared = true; return 1; },
-	static function () { return 1000; },
-	static function () use ( &$schedule_next ) { return false !== $schedule_next ? 'daily' : false; }
-);
-$scheduler->register( $refresh );
-assert_true( isset( $GLOBALS['ksh_test_actions'][ Scheduler::HOOK ][0] ), 'scheduler registers one owned cron callback' );
-$cron_callback = $GLOBALS['ksh_test_actions'][ Scheduler::HOOK ][0];
-assert_true( is_array( $cron_callback ) && $cron_callback[0] === $scheduler && 'run_cron' === $cron_callback[1], 'scheduled callback owns explicit cron attribution before calling canonical refresh' );
-
-$fetch_mode = 'replace';
-$admin      = new Admin_Page( $refresh_preview, $refresh, $store, $scheduler );
-$before     = $fetch_count;
-$manual_run = $admin->run_manual_refresh();
-assert_same( $before + 2, $fetch_count, 'manual refresh invokes the canonical two-list refresh path once' );
-assert_same( 'manual', $manual_run['trigger'], 'manual refresh records explicit manual origin' );
-assert_true( $manual_run['run_summary_recorded'], 'manual refresh persists its bounded run summary' );
-assert_same( $manual_run['run_id'], $manual_run['latest']['run_id'], 'manual Latest outcome carries the same run id' );
-assert_same( $manual_run['run_id'], $manual_run['weekly_popular']['run_id'], 'manual Weekly outcome carries the same run id' );
-assert_same( 'manual', $store->get_attempt( 'latest' )['trigger'], 'manual Latest attempt records origin' );
-assert_same( $manual_run['run_id'], $store->get_attempt( 'latest' )['run_id'], 'manual Latest attempt correlates to run summary' );
-assert_same( $manual_run['run_id'], $store->get_run_summary( 'manual' )['run_id'], 'manual run summary correlates to both list outcomes' );
-assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LAST_MANUAL_RUN ], 'manual run summary is non-autoloaded' );
-$manual_summary_before_cron = $store->get_run_summary( 'manual' );
-
-$before   = $fetch_count;
-$cron_run = call_user_func( $cron_callback );
-assert_same( $before + 2, $fetch_count, 'scheduled callback invokes the same canonical two-list refresh path once' );
-assert_same( 'cron', $cron_run['trigger'], 'scheduled callback records explicit cron origin' );
-assert_true( $cron_run['run_summary_recorded'], 'cron callback persists its bounded run summary' );
-assert_same( $cron_run['run_id'], $cron_run['latest']['run_id'], 'cron Latest outcome carries the same run id' );
-assert_same( $cron_run['run_id'], $cron_run['weekly_popular']['run_id'], 'cron Weekly outcome carries the same run id' );
-assert_same( 'cron', $store->get_attempt( 'weekly_popular' )['trigger'], 'cron Weekly attempt records origin' );
-assert_same( $cron_run['run_id'], $store->get_run_summary( 'cron' )['run_id'], 'cron run summary correlates to list outcomes' );
-assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LAST_CRON_RUN ], 'cron run summary is non-autoloaded' );
-assert_same( $manual_summary_before_cron, $store->get_run_summary( 'manual' ), 'cron refresh does not erase latest manual summary' );
-$cron_summary_before_manual = $store->get_run_summary( 'cron' );
-
-$before      = $fetch_count;
-$manual_run2 = $admin->run_manual_refresh();
-assert_same( $before + 2, $fetch_count, 'later manual refresh still reuses the canonical acquisition path' );
-assert_same( $cron_summary_before_manual, $store->get_run_summary( 'cron' ), 'later manual refresh does not erase latest cron summary' );
-$manual_summary_before_cron2 = $store->get_run_summary( 'manual' );
-
-$before    = $fetch_count;
-$cron_run2 = call_user_func( $cron_callback );
-assert_same( $before + 2, $fetch_count, 'later cron refresh still reuses the canonical acquisition path' );
-assert_same( $manual_summary_before_cron2, $store->get_run_summary( 'manual' ), 'later cron refresh does not erase latest manual summary' );
-assert_same( $cron_run2['run_id'], $store->get_run_summary( 'cron' )['run_id'], 'latest cron summary advances independently' );
-
-/* Run-summary persistence failure never rolls back valid article snapshots or fabricates cron proof. */
 $summary_fail_values = array();
 $summary_fail_get    = static function ( $name, $default = false ) use ( &$summary_fail_values ) {
 	return array_key_exists( $name, $summary_fail_values ) ? $summary_fail_values[ $name ] : $default;
 };
-$summary_fail_add = static function ( $name, $value ) use ( &$summary_fail_values ) {
+$summary_fail_add = static function ( $name, $value, $deprecated = '', $autoload = null ) use ( &$summary_fail_values ) {
 	if ( Snapshot_Store::OPTION_LAST_CRON_RUN === $name ) {
 		return false;
 	}
 	$summary_fail_values[ $name ] = $value;
 	return true;
 };
-$summary_fail_update = static function ( $name, $value ) use ( &$summary_fail_values ) {
+$summary_fail_update = static function ( $name, $value, $autoload = null ) use ( &$summary_fail_values ) {
 	if ( Snapshot_Store::OPTION_LAST_CRON_RUN === $name ) {
 		return false;
 	}
@@ -603,20 +467,55 @@ $summary_fail_store = new Snapshot_Store( $summary_fail_get, $summary_fail_add, 
 $summary_fail_run   = new Refresh_Service(
 	$refresh_preview,
 	$summary_fail_store,
-	static function (): string { return '2026-09-27T04:00:00+00:00'; },
+	static function (): string { return '2026-09-30T12:32:00+00:00'; },
 	static function (): string { return 'cron-run-summary-write-failure'; }
 );
-$fetch_mode          = 'replace';
 $summary_fail_result = $summary_fail_run->run( 'cron' );
-assert_same( false, $summary_fail_result['run_summary_recorded'], 'cron run exposes run-summary persistence failure' );
-assert_same( 'run_summary_write_failed', $summary_fail_result['run_summary_reason'], 'cron run-summary failure has bounded reason' );
-assert_true( null !== $summary_fail_store->get_snapshot( 'latest' ), 'diagnostic write failure does not roll back valid Latest snapshot' );
-assert_true( null !== $summary_fail_store->get_snapshot( 'weekly_popular' ), 'diagnostic write failure does not roll back valid Weekly snapshot' );
-assert_same( null, $summary_fail_store->get_run_summary( 'cron' ), 'failed cron run-summary write leaves no false persisted cron summary' );
+assert_same( false, $summary_fail_result['run_summary_recorded'], 'run-summary write failure is exposed' );
+assert_same( 'run_summary_write_failed', $summary_fail_result['run_summary_reason'], 'run-summary write failure keeps bounded reason' );
+assert_true( null !== $summary_fail_store->get_snapshot( 'latest' ), 'run-summary failure does not roll back Latest snapshot' );
+assert_true( null !== $summary_fail_store->get_snapshot( 'weekly_popular' ), 'run-summary failure does not roll back Weekly snapshot' );
+assert_same( null, $summary_fail_store->get_run_summary( 'cron' ), 'failed Cron summary persistence cannot fabricate Cron proof' );
 
-/* Diagnostic report distinguishes scheduling from observed cron execution and stays read-only. */
+/* Manual/Cron orchestration and diagnostic reads preserve established boundaries. */
+$GLOBALS['ksh_test_actions'] = array();
+$schedule_next = false;
+$scheduled_at  = null;
+$scheduler     = new Scheduler(
+	static function () use ( &$schedule_next ) { return $schedule_next; },
+	static function ( $timestamp, $recurrence, $hook ) use ( &$schedule_next, &$scheduled_at ) {
+		$scheduled_at  = array( $timestamp, $recurrence, $hook );
+		$schedule_next = $timestamp;
+		return true;
+	},
+	static function () use ( &$schedule_next ) { $schedule_next = false; return 1; },
+	static function () { return 1000; },
+	static function () use ( &$schedule_next ) { return false !== $schedule_next ? 'daily' : false; }
+);
+$scheduler->register( $refresh );
+assert_true( isset( $GLOBALS['ksh_test_actions'][ Scheduler::HOOK ][0] ), 'scheduler registers one owned Cron callback' );
+$cron_callback = $GLOBALS['ksh_test_actions'][ Scheduler::HOOK ][0];
+
+$fetch_mode = 'replace';
+$admin      = new Admin_Page( $refresh_preview, $refresh, $store, $scheduler );
+$before     = $fetch_count;
+$manual_run = $admin->run_manual_refresh();
+assert_same( $before + 2, $fetch_count, 'manual refresh retains independent two-list acquisition' );
+assert_same( 'manual', $manual_run['trigger'], 'manual refresh records origin' );
+assert_true( $manual_run['run_summary_recorded'], 'manual refresh persists bounded run summary' );
+assert_same( $manual_run['run_id'], $store->get_run_summary( 'manual' )['run_id'], 'manual summary correlates to run id' );
+
+$before   = $fetch_count;
+$cron_run = call_user_func( $cron_callback );
+assert_same( $before + 2, $fetch_count, 'Cron refresh retains independent two-list acquisition' );
+assert_same( 'cron', $cron_run['trigger'], 'Cron refresh records origin' );
+assert_true( $cron_run['run_summary_recorded'], 'Cron refresh persists bounded run summary' );
+assert_same( $cron_run['run_id'], $store->get_run_summary( 'cron' )['run_id'], 'Cron summary correlates to run id' );
+assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LAST_MANUAL_RUN ], 'manual run summary remains non-autoloaded' );
+assert_same( false, $option_autoload[ Snapshot_Store::OPTION_LAST_CRON_RUN ], 'Cron run summary remains non-autoloaded' );
+
 $diagnostic_schedule_mutations = 0;
-$diagnostic_scheduler          = new Scheduler(
+$diagnostic_scheduler = new Scheduler(
 	static function () { return 1730000000; },
 	static function () use ( &$diagnostic_schedule_mutations ) { ++$diagnostic_schedule_mutations; return true; },
 	static function () use ( &$diagnostic_schedule_mutations ) { ++$diagnostic_schedule_mutations; return 1; },
@@ -626,246 +525,28 @@ $diagnostic_scheduler          = new Scheduler(
 $diagnostic = new Diagnostic_Report(
 	$store,
 	$diagnostic_scheduler,
-	static function (): string { return '2026-09-27T10:11:12+00:00'; }
+	static function (): string { return '2026-09-30T13:00:00+00:00'; }
 );
 $state_before_report = $option_values;
 $fetch_before_report = $fetch_count;
 $report              = $diagnostic->build();
-assert_same( $fetch_before_report, $fetch_count, 'diagnostic JSON state generation performs zero remote acquisitions' );
-assert_same( $state_before_report, $option_values, 'diagnostic JSON state generation performs zero option mutations' );
-assert_same( 0, $diagnostic_schedule_mutations, 'diagnostic JSON state generation performs zero schedule mutations' );
-assert_same( Diagnostic_Report::SCHEMA, $report['report']['schema'], 'diagnostic report exposes stable schema identifier' );
-assert_same( Plugin::VERSION, $report['plugin']['version'], 'diagnostic report exposes running plugin version' );
-assert_same( '7.1.2', $report['runtime']['wordpress_version'], 'diagnostic report exposes safe WordPress version fact' );
-assert_same( PHP_VERSION, $report['runtime']['php_version'], 'diagnostic report exposes safe PHP version fact' );
-assert_same( true, $report['scheduler']['event_registered'], 'diagnostic report exposes registered schedule independently' );
-assert_same( 'daily', $report['scheduler']['recurrence'], 'diagnostic report exposes owned recurrence' );
-assert_same( true, $report['scheduler']['cron_execution_observed'], 'persisted cron-origin run summary proves observed cron execution in deterministic state' );
-assert_same( $store->get_run_summary( 'cron' )['started_at'], $report['scheduler']['last_cron_run']['started_at'], 'report exposes latest observed cron timestamp' );
-assert_same( $store->get_run_summary( 'cron' )['overall_status'], $report['assessment']['last_cron_overall_status'], 'report exposes latest observed cron result' );
-assert_same( $store->get_run_summary( 'manual' )['run_id'], $report['refresh']['last_manual_run']['run_id'], 'manual and cron summaries remain separately reportable' );
-assert_same( true, $report['lists']['latest']['current_snapshot']['valid'], 'report validates current Latest snapshot locally' );
-assert_true( $report['lists']['latest']['current_snapshot']['count'] > 0, 'report includes current Latest count' );
-assert_true( ! empty( $report['lists']['latest']['current_snapshot']['items'] ), 'report includes bounded normalized Latest items' );
-assert_same( 'cron', $report['lists']['latest']['latest_attempt']['trigger'], 'report includes latest per-list explicit origin' );
-assert_same( $cron_run2['run_id'], $report['lists']['latest']['latest_attempt']['run_id'], 'report correlates latest per-list attempt with latest cron run' );
-assert_same( false, $report['assessment']['observability_incomplete'], 'matching latest attempts and run summary report complete observability' );
-assert_same( 'CRON_EXECUTION_OBSERVED', $report['assessment']['diagnostic_state'], 'observed cron summary produces factual observed state' );
+assert_same( $fetch_before_report, $fetch_count, 'diagnostic build performs zero remote acquisitions' );
+assert_same( $state_before_report, $option_values, 'diagnostic build performs zero option mutations' );
+assert_same( 0, $diagnostic_schedule_mutations, 'diagnostic build performs zero schedule mutations' );
+assert_same( Plugin::VERSION, $report['plugin']['version'], 'diagnostic reports synchronized plugin version' );
+assert_same( true, $report['scheduler']['event_registered'], 'diagnostic reports scheduler registration independently' );
+assert_same( true, $report['scheduler']['cron_execution_observed'], 'persisted Cron summary remains observable' );
+assert_same( true, $report['lists']['latest']['current_snapshot']['valid'], 'diagnostic validates current Latest snapshot locally' );
+assert_same( $store->get_snapshot( 'latest' )['count'], $report['lists']['latest']['current_snapshot']['count'], 'diagnostic exposes full stored count, not public display cap' );
+$json = wp_json_encode( $report, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
+assert_true( is_array( json_decode( $json, true ) ), 'diagnostic remains valid JSON' );
+assert_same( false, false !== strpos( $json, '<html' ), 'diagnostic never exports raw remote HTML' );
 
-$json = wp_json_encode( $report, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-assert_true( is_string( $json ) && is_array( json_decode( $json, true ) ), 'diagnostic report encodes as valid UTF-8 JSON' );
-assert_true( false !== strpos( $json, 'تازه جدید اول' ), 'Persian normalized snapshot text survives JSON encoding' );
-assert_same( false, false !== strpos( $json, '<html' ), 'diagnostic report never exports raw remote HTML' );
-assert_same( false, false !== strpos( $json, 'raw_html' ), 'diagnostic report has no raw-html field' );
-foreach ( array( 'password', 'passwd', 'secret', 'cookie', 'authorization', 'nonce', 'db_password', 'database_password', 'salt', 'username', 'email' ) as $forbidden_key ) {
-	assert_same( false, false !== stripos( $json, '"' . $forbidden_key . '"' ), 'diagnostic report excludes forbidden key: ' . $forbidden_key );
-}
-
-/* Scheduled event without persisted cron-origin summary is explicitly not observed. */
-$no_cron_values = array(
-	Snapshot_Store::OPTION_LATEST_ATTEMPT => array(
-		'schema_version'   => 1,
-		'source'           => 'latest',
-		'attempted_at'     => '2026-09-26T23:00:00+00:00',
-		'candidate_status' => 'success',
-		'http_code'        => 200,
-		'reason'           => '',
-		'action'           => 'updated',
-	),
-);
-$no_cron_get = static function ( $name, $default = false ) use ( &$no_cron_values ) {
-	return array_key_exists( $name, $no_cron_values ) ? $no_cron_values[ $name ] : $default;
-};
-$no_cron_add = static function ( $name, $value ) use ( &$no_cron_values ) {
-	$no_cron_values[ $name ] = $value;
-	return true;
-};
-$no_cron_update = static function ( $name, $value ) use ( &$no_cron_values ) {
-	$no_cron_values[ $name ] = $value;
-	return true;
-};
-$no_cron_store     = new Snapshot_Store( $no_cron_get, $no_cron_add, $no_cron_update );
-$scheduled_report  = ( new Diagnostic_Report(
-	$no_cron_store,
-	$diagnostic_scheduler,
-	static function (): string { return '2026-09-27T10:12:00+00:00'; }
-) )->build();
-assert_same( true, $scheduled_report['scheduler']['event_registered'], 'scheduled-only state reports schedule registration' );
-assert_same( false, $scheduled_report['scheduler']['cron_execution_observed'], 'schedule registration alone never proves cron execution' );
-assert_same( null, $scheduled_report['scheduler']['last_cron_run'], 'scheduled-only state has no fabricated cron run' );
-assert_same( 'SCHEDULED_NOT_YET_OBSERVED', $scheduled_report['assessment']['diagnostic_state'], 'scheduled-only state remains explicitly unobserved' );
-assert_same( 'unknown', $scheduled_report['lists']['latest']['latest_attempt']['trigger'], 'legacy attempt without trigger remains readable as unknown' );
-assert_same( 'legacy_or_unknown', $scheduled_report['lists']['latest']['latest_attempt']['attribution'], 'legacy attempt is truthfully attributed' );
-assert_same( false, $scheduled_report['assessment']['observability_incomplete'], 'legacy unattributed attempt does not fabricate an observability-write failure' );
-
-$missing_schedule = new Scheduler(
-	static function () { return false; },
-	static function () { throw new RuntimeException( 'diagnostic read must not schedule' ); },
-	static function () { throw new RuntimeException( 'diagnostic read must not clear schedule' ); },
-	static function () { return 1000; },
-	static function () { return false; }
-);
-$missing_report = ( new Diagnostic_Report(
-	$no_cron_store,
-	$missing_schedule,
-	static function (): string { return '2026-09-27T10:13:00+00:00'; }
-) )->build();
-assert_same( false, $missing_report['scheduler']['event_registered'], 'missing schedule is distinguishable from scheduled state' );
-assert_same( false, $missing_report['scheduler']['cron_execution_observed'], 'missing schedule does not imply cron execution' );
-assert_same( 'SCHEDULE_MISSING', $missing_report['assessment']['diagnostic_state'], 'missing schedule has distinct deterministic state' );
-
-$summary_fail_scheduler = new Scheduler(
-	static function () { return 1730000000; },
-	static function () { return true; },
-	static function () { return 1; },
-	static function () { return 1000; },
-	static function () { return 'daily'; }
-);
-$summary_fail_report = ( new Diagnostic_Report(
-	$summary_fail_store,
-	$summary_fail_scheduler,
-	static function (): string { return '2026-09-27T10:14:00+00:00'; }
-) )->build();
-assert_same( false, $summary_fail_report['scheduler']['cron_execution_observed'], 'failed run-summary persistence cannot become persistent cron proof' );
-assert_same( true, $summary_fail_report['assessment']['cron_attempts_without_matching_summary'], 'report explicitly surfaces persisted cron attempts lacking required run summary' );
-assert_same( true, $summary_fail_report['assessment']['observability_incomplete'], 'run-summary persistence failure is explicitly reported as incomplete observability' );
-assert_same( 'SCHEDULED_NOT_YET_OBSERVED', $summary_fail_report['assessment']['diagnostic_state'], 'run-summary write failure stays unobserved despite registered schedule' );
-
-/* Per-list attempt correlation fails closed for partial/interleaved Manual and Cron state. */
-$diagnostic_attempt = static function ( $source, $trigger, $run_id ) {
-	return array(
-		'schema_version'   => Snapshot_Store::ATTEMPT_SCHEMA_VERSION,
-		'source'           => $source,
-		'trigger'          => $trigger,
-		'run_id'           => $run_id,
-		'attempted_at'     => '2026-09-27T10:20:00+00:00',
-		'candidate_status' => 'success',
-		'http_code'        => 200,
-		'reason'           => '',
-		'action'           => 'updated',
-	);
-};
-$diagnostic_summary = static function ( $trigger, $run_id ) {
-	return array(
-		'schema_version' => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
-		'trigger'        => $trigger,
-		'run_id'         => $run_id,
-		'started_at'     => '2026-09-27T10:19:00+00:00',
-		'completed_at'   => '2026-09-27T10:20:00+00:00',
-		'overall_status' => 'success',
-		'lists'          => array(),
-	);
-};
-$build_correlation_report = static function ( array $values ) use ( $diagnostic_scheduler ): array {
-	$get = static function ( $name, $default = false ) use ( $values ) {
-		return array_key_exists( $name, $values ) ? $values[ $name ] : $default;
-	};
-	$reject_write = static function ( $name, $value ) {
-		throw new RuntimeException( 'correlation diagnostic must remain read-only: ' . $name );
-	};
-	$correlation_store = new Snapshot_Store( $get, $reject_write, $reject_write );
-
-	return ( new Diagnostic_Report(
-		$correlation_store,
-		$diagnostic_scheduler,
-		static function (): string { return '2026-09-27T10:21:00+00:00'; }
-	) )->build();
-};
-
-$matching_cron_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-current' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-current' ),
-		Snapshot_Store::OPTION_LAST_CRON_RUN   => $diagnostic_summary( 'cron', 'cron-current' ),
-	)
-);
-assert_same( false, $matching_cron_report['assessment']['cron_attempts_without_matching_summary'], 'matching Cron per-list attempts and summary are complete' );
-assert_same( false, $matching_cron_report['assessment']['observability_incomplete'], 'fully matching current Cron run has complete observability' );
-
-$latest_newer_cron_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-newer' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-older' ),
-	)
-);
-assert_same( true, $latest_newer_cron_report['assessment']['cron_attempts_without_matching_summary'], 'newer Latest Cron attempt without matching summary exposes a gap despite older Weekly attempt' );
-assert_same( true, $latest_newer_cron_report['assessment']['observability_incomplete'], 'asymmetric Latest Cron state fails closed as incomplete observability' );
-
-$weekly_newer_cron_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-older' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-newer' ),
-	)
-);
-assert_same( true, $weekly_newer_cron_report['assessment']['cron_attempts_without_matching_summary'], 'newer Weekly Cron attempt without matching summary exposes a gap despite older Latest attempt' );
-
-$previous_cron_summary_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-newer' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-previous' ),
-		Snapshot_Store::OPTION_LAST_CRON_RUN   => $diagnostic_summary( 'cron', 'cron-previous' ),
-	)
-);
-assert_same( true, $previous_cron_summary_report['assessment']['cron_attempts_without_matching_summary'], 'previous Cron summary cannot hide one per-list attempt advancing to a newer run' );
-
-$advanced_cron_summary_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', 'cron-current' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'cron', 'cron-stale' ),
-		Snapshot_Store::OPTION_LAST_CRON_RUN   => $diagnostic_summary( 'cron', 'cron-current' ),
-	)
-);
-assert_same( true, $advanced_cron_summary_report['assessment']['cron_attempts_without_matching_summary'], 'advanced Cron summary keeps a stale failed per-list attempt mechanically visible' );
-assert_same( true, $advanced_cron_summary_report['assessment']['observability_incomplete'], 'summary advancement with one stale attempt remains incomplete' );
-
-$latest_newer_manual_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'manual', 'manual-newer' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'manual', 'manual-older' ),
-	)
-);
-assert_same( true, $latest_newer_manual_report['assessment']['manual_attempts_without_matching_summary'], 'newer Latest Manual attempt without matching summary exposes a gap' );
-
-$weekly_newer_manual_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'manual', 'manual-older' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT => $diagnostic_attempt( 'weekly_popular', 'manual', 'manual-newer' ),
-	)
-);
-assert_same( true, $weekly_newer_manual_report['assessment']['manual_attempts_without_matching_summary'], 'newer Weekly Manual attempt without matching summary exposes a gap' );
-
-$independent_trigger_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT  => $diagnostic_attempt( 'latest', 'cron', 'cron-current' ),
-		Snapshot_Store::OPTION_WEEKLY_ATTEMPT  => $diagnostic_attempt( 'weekly_popular', 'manual', 'manual-current' ),
-		Snapshot_Store::OPTION_LAST_CRON_RUN    => $diagnostic_summary( 'cron', 'cron-current' ),
-		Snapshot_Store::OPTION_LAST_MANUAL_RUN  => $diagnostic_summary( 'manual', 'manual-current' ),
-	)
-);
-assert_same( false, $independent_trigger_report['assessment']['cron_attempts_without_matching_summary'], 'Manual attempt does not create a false Cron correlation gap' );
-assert_same( false, $independent_trigger_report['assessment']['manual_attempts_without_matching_summary'], 'Cron attempt does not create a false Manual correlation gap' );
-assert_same( false, $independent_trigger_report['assessment']['observability_incomplete'], 'independently matching Manual and Cron state remains complete' );
-
-$missing_run_id_report = $build_correlation_report(
-	array(
-		Snapshot_Store::OPTION_LATEST_ATTEMPT => $diagnostic_attempt( 'latest', 'cron', null ),
-	)
-);
-assert_same( 'cron', $missing_run_id_report['lists']['latest']['latest_attempt']['trigger'], 'explicit Cron trigger remains visible when run id is missing' );
-assert_same( 'legacy_or_unknown', $missing_run_id_report['lists']['latest']['latest_attempt']['attribution'], 'missing run id does not fabricate explicit correlation attribution' );
-assert_same( true, $missing_run_id_report['assessment']['cron_attempts_without_matching_summary'], 'explicit Cron attempt without usable run id fails closed as an observability gap' );
-
-/* Page render and JSON export remain remote-free; download is protected by capability + nonce. */
-$_SERVER['REQUEST_METHOD'] = 'GET';
-$before                    = $fetch_count;
-ob_start();
-$admin->render();
-$admin_html = ob_get_clean();
-assert_same( $before, $fetch_count, 'opening the admin page alone performs no remote acquisition' );
-assert_true( false !== strpos( $admin_html, 'گزارش تشخیصی' ), 'existing Tools page contains compact diagnostic section' );
-assert_true( false !== strpos( $admin_html, 'دانلود گزارش JSON' ), 'existing Tools page exposes one-click JSON download' );
-assert_true( false !== strpos( $admin_html, Admin_Page::EXPORT_ACTION ), 'diagnostic form targets native admin-post action' );
-
+/* Diagnostic export stays read-only and retains capability/nonce protection. */
+$_SERVER['REQUEST_METHOD']             = 'GET';
+$GLOBALS['ksh_test_current_user_can'] = true;
+$GLOBALS['ksh_test_capability']       = null;
+$GLOBALS['ksh_test_nonce_action']     = null;
 $download_admin = new Admin_Page(
 	$refresh_preview,
 	$refresh,
@@ -874,21 +555,18 @@ $download_admin = new Admin_Page(
 	$diagnostic,
 	static function () { return null; }
 );
-$GLOBALS['ksh_test_current_user_can'] = true;
-$GLOBALS['ksh_test_capability']       = null;
-$GLOBALS['ksh_test_nonce_action']     = null;
-$download_state_before               = $option_values;
-$download_fetch_before               = $fetch_count;
-$download_schedule_before            = $diagnostic_schedule_mutations;
+$download_state_before    = $option_values;
+$download_fetch_before    = $fetch_count;
+$download_schedule_before = $diagnostic_schedule_mutations;
 ob_start();
 $download_admin->download_diagnostic();
 $download_json = ob_get_clean();
-assert_same( Admin_Page::CAPABILITY, $GLOBALS['ksh_test_capability'], 'download requires administrator capability' );
-assert_same( Admin_Page::EXPORT_NONCE, $GLOBALS['ksh_test_nonce_action'], 'download action verifies dedicated nonce' );
-assert_true( is_array( json_decode( $download_json, true ) ), 'download handler emits valid JSON directly' );
-assert_same( $download_fetch_before, $fetch_count, 'download handler performs zero remote acquisitions' );
-assert_same( $download_state_before, $option_values, 'download handler performs zero snapshot/attempt/run-summary mutations' );
-assert_same( $download_schedule_before, $diagnostic_schedule_mutations, 'download handler performs zero schedule mutations' );
+assert_same( Admin_Page::CAPABILITY, $GLOBALS['ksh_test_capability'], 'diagnostic download requires administrator capability' );
+assert_same( Admin_Page::EXPORT_NONCE, $GLOBALS['ksh_test_nonce_action'], 'diagnostic download verifies dedicated nonce' );
+assert_true( is_array( json_decode( $download_json, true ) ), 'diagnostic download emits valid JSON' );
+assert_same( $download_fetch_before, $fetch_count, 'diagnostic download performs zero remote acquisitions' );
+assert_same( $download_state_before, $option_values, 'diagnostic download performs zero local-state mutations' );
+assert_same( $download_schedule_before, $diagnostic_schedule_mutations, 'diagnostic download performs zero schedule mutations' );
 
 $GLOBALS['ksh_test_current_user_can'] = false;
 $GLOBALS['ksh_test_nonce_action']     = null;
@@ -899,47 +577,44 @@ try {
 	$blocked = true;
 }
 assert_true( $blocked, 'unauthorized diagnostic download is blocked' );
-assert_same( null, $GLOBALS['ksh_test_nonce_action'], 'unauthorized download is rejected before nonce processing' );
+assert_same( null, $GLOBALS['ksh_test_nonce_action'], 'unauthorized diagnostic download is rejected before nonce processing' );
 $GLOBALS['ksh_test_current_user_can'] = true;
 
-
-/* Public frontend renderer reads validated local snapshots only and fails softly. */
-$public_date_marker    = 'KSH-DATE-CONTEXT-PRIVATE-1405-07-04';
-$frontend_latest_items = array();
+/* Public renderer caps presentation only and remains remote-free/read-only. */
+$public_date_marker = 'KSH-DATE-CONTEXT-PRIVATE-1405-07-08';
+$latest_items       = array();
+$weekly_items       = array();
 for ( $i = 1; $i <= 21; ++$i ) {
-	$frontend_latest_items[] = array(
+	$latest_items[] = array(
 		'title'        => 2 === $i ? '<script>alert("x")</script>' : 'تازه ' . $i,
 		'url'          => 'https://www.kanoon.ir/Article/' . ( 970000 + $i ),
-		'date_context' => 1 === $i ? $public_date_marker : ( 3 === $i ? '' : 'شنبه 4 مهر 1405' ),
+		'date_context' => 1 === $i ? $public_date_marker : '',
 	);
 }
-
-$frontend_weekly_items = array();
 for ( $i = 1; $i <= 17; ++$i ) {
-	$frontend_weekly_items[] = array(
+	$weekly_items[] = array(
 		'title'        => 'محبوب ' . $i,
 		'url'          => 'https://www.kanoon.ir/Article/' . ( 980000 + $i ),
 		'date_context' => '',
 	);
 }
-
 $frontend_values = array(
 	Snapshot_Store::OPTION_LATEST_SNAPSHOT => array(
 		'schema_version' => Snapshot_Store::SCHEMA_VERSION,
 		'source'         => 'latest',
-		'source_url'     => 'https://www.kanoon.ir/Article/Days',
-		'items'          => $frontend_latest_items,
-		'count'          => count( $frontend_latest_items ),
-		'updated_at'     => '2026-09-27T10:19:14+00:00',
-		'date_context'   => 'شنبه 4 مهر 1405',
+		'source_url'     => Source_Config::LATEST_URL,
+		'items'          => $latest_items,
+		'count'          => count( $latest_items ),
+		'updated_at'     => '2026-09-30T13:10:00+00:00',
+		'date_context'   => '',
 	),
 	Snapshot_Store::OPTION_WEEKLY_SNAPSHOT => array(
 		'schema_version' => Snapshot_Store::SCHEMA_VERSION,
 		'source'         => 'weekly_popular',
-		'source_url'     => 'https://www.kanoon.ir/',
-		'items'          => $frontend_weekly_items,
-		'count'          => count( $frontend_weekly_items ),
-		'updated_at'     => '2026-09-27T10:19:14+00:00',
+		'source_url'     => Source_Config::WEEKLY_URL,
+		'items'          => $weekly_items,
+		'count'          => count( $weekly_items ),
+		'updated_at'     => '2026-09-30T13:10:00+00:00',
 		'date_context'   => '',
 	),
 );
@@ -953,78 +628,68 @@ $frontend_reject_write = static function () use ( &$frontend_writes ) {
 	++$frontend_writes;
 	throw new RuntimeException( 'frontend rendering must remain read-only' );
 };
-$frontend_store    = new Snapshot_Store( $frontend_get, $frontend_reject_write, $frontend_reject_write );
-$renderer          = new Frontend_Renderer( $frontend_store );
-$frontend_before   = $frontend_values;
-$remote_before     = $fetch_count;
-$cron_before       = $GLOBALS['ksh_test_cron'];
-$esc_url_before    = $GLOBALS['ksh_test_esc_url_calls'];
-$frontend_html     = $renderer->render();
-$expected_link_urls = array_merge(
-	array_column( $frontend_latest_items, 'url' ),
-	array_column( $frontend_weekly_items, 'url' )
-);
+$frontend_store  = new Snapshot_Store( $frontend_get, $frontend_reject_write, $frontend_reject_write );
+$renderer        = new Frontend_Renderer( $frontend_store );
+$frontend_before = $frontend_values;
+$remote_before   = $fetch_count;
+$cron_before     = $GLOBALS['ksh_test_cron'];
+$esc_url_before  = $GLOBALS['ksh_test_esc_url_calls'];
+$frontend_html   = $renderer->render();
 
 assert_same( $remote_before, $fetch_count, 'frontend rendering performs zero remote acquisitions' );
-assert_same( $frontend_before, $frontend_values, 'frontend rendering performs zero snapshot/attempt/run-summary mutations' );
-assert_same( 0, $frontend_writes, 'frontend rendering never reaches option writes' );
-assert_same( $cron_before, $GLOBALS['ksh_test_cron'], 'frontend rendering performs zero Cron schedule mutations' );
-assert_true( $frontend_reads >= 2, 'frontend renderer reads local snapshot state through the store boundary' );
-assert_true( false !== strpos( $frontend_html, '<section class="ksh-kanoon-articles" dir="rtl" lang="fa">' ), 'frontend module exposes explicit Persian RTL semantics' );
-assert_true( false !== strpos( $frontend_html, '>تازه‌های کانون</h2>' ), 'frontend module renders canonical section label' );
-assert_true( false !== strpos( $frontend_html, '>تازه‌ها</h3>' ), 'frontend module renders Latest panel label' );
-assert_true( false !== strpos( $frontend_html, '>پربازدید هفته</h3>' ), 'frontend module renders Weekly Popular panel label' );
-assert_same( count( $expected_link_urls ), $GLOBALS['ksh_test_esc_url_calls'] - $esc_url_before, 'every rendered article URL passes through esc_url' );
+assert_same( $frontend_before, $frontend_values, 'frontend rendering leaves complete snapshots intact' );
+assert_same( 0, $frontend_writes, 'frontend rendering performs zero option writes' );
+assert_same( $cron_before, $GLOBALS['ksh_test_cron'], 'frontend rendering performs zero schedule mutations' );
+assert_true( $frontend_reads >= 2, 'frontend reads only local snapshot state' );
+assert_same( 21, $frontend_values[ Snapshot_Store::OPTION_LATEST_SNAPSHOT ]['count'], 'Latest stored count remains above display cap' );
+assert_same( 17, $frontend_values[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ]['count'], 'Weekly stored count remains above display cap' );
 
 $rendered_links = array();
 preg_match_all( '/<a class="ksh-kanoon-articles__link" href="([^"]+)">/', $frontend_html, $rendered_links );
-assert_same( $expected_link_urls, $rendered_links[1], 'frontend preserves both stored list orders and renders every available item without truncation' );
-assert_true( false !== strpos( $frontend_html, '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' ), 'frontend escapes article titles at output' );
-assert_same( false, false !== strpos( $frontend_html, '<script>alert("x")</script>' ), 'frontend never emits raw article-title HTML' );
-assert_same( false, false !== strpos( $frontend_html, $public_date_marker ), 'frontend does not expose stored Latest date_context' );
-assert_same( false, false !== strpos( $frontend_html, 'ksh-kanoon-articles__meta' ), 'frontend emits no obsolete date metadata markup' );
-assert_same( $public_date_marker, $frontend_values[ Snapshot_Store::OPTION_LATEST_SNAPSHOT ]['items'][0]['date_context'], 'frontend presentation change preserves stored date_context' );
+$expected_links = array_merge(
+	array_slice( array_column( $latest_items, 'url' ), 0, Frontend_Renderer::DISPLAY_LIMIT ),
+	array_slice( array_column( $weekly_items, 'url' ), 0, Frontend_Renderer::DISPLAY_LIMIT )
+);
+assert_same( 30, count( $rendered_links[1] ), 'public HTML emits no more than 15 links per list' );
+assert_same( $expected_links, $rendered_links[1], 'public renderer preserves source order while displaying only first 15 per list' );
+assert_same( 30, $GLOBALS['ksh_test_esc_url_calls'] - $esc_url_before, 'every rendered URL passes through esc_url' );
+assert_same( false, false !== strpos( $frontend_html, 'https://www.kanoon.ir/Article/970016' ), 'Latest item 16 is not publicly rendered' );
+assert_same( false, false !== strpos( $frontend_html, 'https://www.kanoon.ir/Article/980016' ), 'Weekly item 16 is not publicly rendered' );
+assert_true( false !== strpos( $frontend_html, '&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;' ), 'article titles remain escaped' );
+assert_same( false, false !== strpos( $frontend_html, '<script>alert("x")</script>' ), 'raw title HTML is never emitted' );
+assert_same( false, false !== strpos( $frontend_html, $public_date_marker ), 'public HTML does not expose date_context' );
+assert_same( false, false !== strpos( $frontend_html, 'ksh-kanoon-articles__meta' ), 'public HTML contains no date metadata markup' );
+assert_true( false !== strpos( $frontend_html, '<section class="ksh-kanoon-articles" dir="rtl" lang="fa">' ), 'frontend preserves explicit RTL semantics' );
 
 $frontend_diagnostic = new Diagnostic_Report(
 	$frontend_store,
 	$diagnostic_scheduler,
-	static function (): string { return '2026-09-27T11:00:00+00:00'; }
+	static function (): string { return '2026-09-30T13:20:00+00:00'; }
 );
 $frontend_report_json = wp_json_encode( $frontend_diagnostic->build(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES );
-assert_true( false !== strpos( $frontend_report_json, $public_date_marker ), 'diagnostic report still exposes stored date_context metadata' );
+assert_true( false !== strpos( $frontend_report_json, $public_date_marker ), 'diagnostic still exposes stored date_context metadata' );
 
-$weekly_only_values = array(
-	Snapshot_Store::OPTION_WEEKLY_SNAPSHOT => $frontend_values[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ],
-);
-$weekly_only_get = static function ( $name, $default = false ) use ( &$weekly_only_values ) {
+$weekly_only_values = array( Snapshot_Store::OPTION_WEEKLY_SNAPSHOT => $frontend_values[ Snapshot_Store::OPTION_WEEKLY_SNAPSHOT ] );
+$weekly_only_get    = static function ( $name, $default = false ) use ( &$weekly_only_values ) {
 	return array_key_exists( $name, $weekly_only_values ) ? $weekly_only_values[ $name ] : $default;
 };
-$weekly_only_store  = new Snapshot_Store( $weekly_only_get, $frontend_reject_write, $frontend_reject_write );
-$weekly_only_html   = ( new Frontend_Renderer( $weekly_only_store ) )->render();
+$weekly_only_store = new Snapshot_Store( $weekly_only_get, $frontend_reject_write, $frontend_reject_write );
+$weekly_only_html  = ( new Frontend_Renderer( $weekly_only_store ) )->render();
 assert_true( false !== strpos( $weekly_only_html, '>پربازدید هفته</h3>' ), 'one available list still renders cleanly' );
-assert_same( false, false !== strpos( $weekly_only_html, '>تازه‌ها</h3>' ), 'missing Latest is not silently substituted from Weekly' );
-assert_true( false !== strpos( $weekly_only_html, 'ksh-kanoon-articles__grid--single' ), 'single-list fail-soft layout expands cleanly' );
+assert_same( false, false !== strpos( $weekly_only_html, '>تازه‌ها</h3>' ), 'missing Latest is not substituted from Weekly' );
+assert_true( false !== strpos( $weekly_only_html, 'ksh-kanoon-articles__grid--single' ), 'single-list soft failure layout remains valid' );
 
-$missing_values = array();
-$missing_get    = static function ( $name, $default = false ) use ( &$missing_values ) {
-	return array_key_exists( $name, $missing_values ) ? $missing_values[ $name ] : $default;
-};
+$missing_get   = static function ( $name, $default = false ) { return $default; };
 $missing_store = new Snapshot_Store( $missing_get, $frontend_reject_write, $frontend_reject_write );
-assert_same( '', ( new Frontend_Renderer( $missing_store ) )->render(), 'both missing lists fail softly with no public technical panel' );
+assert_same( '', ( new Frontend_Renderer( $missing_store ) )->render(), 'both missing lists fail softly without a public error panel' );
 
 $malformed_values = array(
 	Snapshot_Store::OPTION_LATEST_SNAPSHOT => array(
 		'schema_version' => Snapshot_Store::SCHEMA_VERSION,
 		'source'         => 'latest',
-		'items'          => array(
-			array(
-				'title'        => '<img src=x onerror=alert(1)>',
-				'url'          => 'javascript:alert(1)',
-				'date_context' => 'خراب',
-			),
-		),
+		'items'          => array( array( 'title' => 'خراب', 'url' => 'javascript:alert(1)', 'date_context' => '' ) ),
 		'count'          => 1,
-		'updated_at'     => '2026-09-27T10:19:14+00:00',
+		'updated_at'     => '2026-09-30T13:10:00+00:00',
 		'date_context'   => '',
 	),
 );
@@ -1032,74 +697,77 @@ $malformed_get = static function ( $name, $default = false ) use ( &$malformed_v
 	return array_key_exists( $name, $malformed_values ) ? $malformed_values[ $name ] : $default;
 };
 $malformed_store = new Snapshot_Store( $malformed_get, $frontend_reject_write, $frontend_reject_write );
-assert_same( '', ( new Frontend_Renderer( $malformed_store ) )->render(), 'malformed local state fails closed without unsafe public output or remote fallback' );
+assert_same( '', ( new Frontend_Renderer( $malformed_store ) )->render(), 'malformed local state fails closed without remote fallback' );
 
+/* Shortcode, CSS ownership, responsive RTL, and font-inheritance boundaries. */
 $GLOBALS['ksh_test_shortcodes'] = array();
 $GLOBALS['ksh_test_styles']     = array();
 $shortcode                      = new Shortcode( $renderer );
 $shortcode->register();
-assert_true( isset( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'public shortcode is registered' );
-assert_true( is_array( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ) && $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ][0] === $shortcode, 'shortcode callback delegates through the owned adapter' );
-assert_true( isset( $GLOBALS['ksh_test_actions']['wp_enqueue_scripts'] ), 'frontend stylesheet uses the native public enqueue lifecycle' );
+assert_true( isset( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'existing shortcode remains registered' );
+assert_same( 'ksh_kanoon_articles', Shortcode::TAG, 'shortcode syntax remains backward compatible' );
+assert_true( isset( $GLOBALS['ksh_test_actions']['wp_enqueue_scripts'] ), 'frontend stylesheet keeps native enqueue lifecycle' );
 $shortcode->enqueue_styles();
-assert_true( isset( $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ] ), 'frontend stylesheet is enqueued under one owned handle' );
-assert_same( 'https://example.test/wp-content/plugins/ksh-kanoon-articles/assets/css/frontend.css', $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ]['src'], 'frontend stylesheet path is plugin-owned' );
-assert_same( Plugin::VERSION, $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ]['ver'], 'frontend stylesheet cache version follows plugin version' );
-assert_same( $frontend_html, call_user_func( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'shortcode output is exactly the reusable renderer output' );
+assert_same( Plugin::VERSION, $GLOBALS['ksh_test_styles'][ Shortcode::STYLE_HANDLE ]['ver'], 'frontend stylesheet cache identity follows plugin version' );
+assert_same( $frontend_html, call_user_func( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'shortcode output delegates exactly to renderer' );
 
-$frontend_source = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-frontend-renderer.php' );
+$frontend_source  = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-frontend-renderer.php' );
 $shortcode_source = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/includes/class-shortcode.php' );
-assert_true( is_string( $frontend_source ) && is_string( $shortcode_source ), 'frontend source is available for architecture regression checks' );
 foreach ( array( 'Remote_Fetcher', 'Preview_Service', 'Refresh_Service', 'wp_remote_', 'save_snapshot', 'save_attempt', 'save_run_summary', 'ensure_scheduled' ) as $forbidden_frontend_dependency ) {
-	assert_same(
-		false,
-		false !== strpos( $frontend_source . $shortcode_source, $forbidden_frontend_dependency ),
-		'frontend code has no reachable acquisition/refresh/mutation dependency: ' . $forbidden_frontend_dependency
-	);
+	assert_same( false, false !== strpos( $frontend_source . $shortcode_source, $forbidden_frontend_dependency ), 'frontend remains detached from remote/mutation dependency: ' . $forbidden_frontend_dependency );
 }
-assert_true( false !== strpos( $frontend_source, 'get_snapshot' ), 'frontend renderer depends on the existing local snapshot read boundary' );
+assert_true( false !== strpos( $frontend_source, 'get_snapshot' ), 'renderer still depends on local snapshot read boundary' );
+assert_true( false !== strpos( $frontend_source, 'DISPLAY_LIMIT = 15' ), 'presentation limit is explicit and local to renderer' );
 
 $frontend_css = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/assets/css/frontend.css' );
 assert_true( is_string( $frontend_css ) && '' !== $frontend_css, 'frontend CSS exists' );
-assert_true( false !== strpos( $frontend_css, 'align-items: start;' ), 'desktop grid explicitly prevents equal-height panel stretching' );
-assert_true( false !== strpos( $frontend_css, '@media (max-width: 48rem)' ), 'frontend CSS declares a bounded mobile breakpoint' );
-assert_true( false !== strpos( $frontend_css, 'grid-template-columns: 1fr;' ), 'frontend CSS stacks list panels on narrow screens' );
-assert_true( false !== strpos( $frontend_css, ':focus-visible' ), 'frontend CSS provides visible keyboard focus styling' );
-assert_same( false, false !== strpos( $frontend_css, 'ksh-kanoon-articles__meta' ), 'obsolete public date metadata styling is removed' );
+assert_true( false !== strpos( $frontend_css, 'font-size: 0.875rem;' ), 'article links use approved compact desktop scale' );
+assert_true( false !== strpos( $frontend_css, 'line-height: 1.6;' ), 'article typography keeps proportionate readable line-height' );
+assert_true( false !== strpos( $frontend_css, 'padding-block: 0.55rem;' ), 'article rows use tighter scan-friendly spacing' );
+assert_same( false, false !== stripos( $frontend_css, '@font-face' ), 'KSH CSS does not deliver fonts' );
+assert_same( 0, preg_match( '/\bfont-family\s*:/i', $frontend_css ), 'KSH CSS does not take over font-family ownership' );
+assert_same( 0, preg_match( '/["\']Vazir["\']/i', $frontend_css ), 'KSH CSS does not invent a Vazir family alias' );
+assert_true( false !== strpos( $frontend_css, 'font: inherit;' ), 'KSH typography inherits the site-delivered family when available' );
+assert_true( false !== strpos( $frontend_css, 'align-items: start;' ), 'desktop panels retain natural heights' );
+assert_true( false !== strpos( $frontend_css, '@media (max-width: 48rem)' ), 'responsive breakpoint remains bounded' );
+assert_true( false !== strpos( $frontend_css, 'grid-template-columns: 1fr;' ), 'mobile remains single-column' );
+assert_true( false !== strpos( $frontend_css, ':focus-visible' ), 'keyboard focus remains visible' );
 assert_same( 0, preg_match( '/^\s*(?:width|min-width|max-width)\s*:/m', $frontend_css ), 'frontend CSS introduces no fixed physical width declarations' );
 foreach ( preg_split( '/\R/', $frontend_css ) as $css_line ) {
 	$css_line = trim( $css_line );
 	if ( '' === $css_line || '{' !== substr( $css_line, -1 ) || 0 === strpos( $css_line, '@' ) ) {
 		continue;
 	}
-	assert_same( 0, strpos( $css_line, '.ksh-kanoon-articles' ), 'every concrete frontend CSS selector is scoped below the module root' );
+	assert_same( 0, strpos( $css_line, '.ksh-kanoon-articles' ), 'every concrete CSS selector stays scoped below module root' );
 }
 
-/* Schedule ensure, activation, and deactivation boundaries still do not acquire remotely. */
+/* Schedule lifecycle remains remote-free and snapshots survive deactivation. */
 $before = $fetch_count;
 assert_true( $scheduler->ensure_scheduled(), 'missing schedule is registered successfully' );
-assert_same( array( 4600, 'daily', Scheduler::HOOK ), $scheduled_at, 'self-healing schedule uses one daily named hook' );
-assert_same( $before, $fetch_count, 'schedule existence check performs no remote acquisition' );
-assert_same( 'daily', $scheduler->recurrence(), 'registered schedule recurrence is readable without mutation' );
+assert_same( array( 4600, 'daily', Scheduler::HOOK ), $scheduled_at, 'self-healing schedule retains daily named hook' );
+assert_same( $before, $fetch_count, 'schedule registration performs no remote acquisition' );
 
 $GLOBALS['ksh_test_cron'] = array();
 $before                   = $fetch_count;
 Plugin::activate();
-assert_true( false !== wp_next_scheduled( Scheduler::HOOK ), 'activation schedules the named daily event' );
-assert_same( $before, $fetch_count, 'activation scheduling performs no remote acquisition' );
+assert_true( false !== wp_next_scheduled( Scheduler::HOOK ), 'activation schedules owned daily event' );
+assert_same( $before, $fetch_count, 'activation performs no remote acquisition' );
 
 $snapshot_before_deactivate = $store->get_snapshot( 'latest' );
 Plugin::deactivate();
-assert_same( false, wp_next_scheduled( Scheduler::HOOK ), 'deactivation removes scheduled events' );
-assert_same( $snapshot_before_deactivate, $store->get_snapshot( 'latest' ), 'deactivation does not delete valid snapshots' );
+assert_same( false, wp_next_scheduled( Scheduler::HOOK ), 'deactivation clears scheduled event' );
+assert_same( $snapshot_before_deactivate, $store->get_snapshot( 'latest' ), 'deactivation preserves valid snapshots' );
 
 $GLOBALS['ksh_test_actions']    = array();
 $GLOBALS['ksh_test_shortcodes'] = array();
 $before                         = $fetch_count;
 Plugin::boot();
-assert_true( isset( $GLOBALS['ksh_test_actions'][ 'admin_post_' . Admin_Page::EXPORT_ACTION ][0] ), 'plugin boot registers authenticated native diagnostic download handler' );
-assert_true( isset( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'plugin boot registers the public Kanoon shortcode' );
-assert_true( isset( $GLOBALS['ksh_test_actions']['wp_enqueue_scripts'][0] ), 'plugin boot registers the bounded frontend style enqueue hook' );
-assert_same( $before, $fetch_count, 'plugin boot remains remote-acquisition free' );
+assert_true( isset( $GLOBALS['ksh_test_actions'][ 'admin_post_' . Admin_Page::EXPORT_ACTION ][0] ), 'plugin boot keeps authenticated diagnostic download handler' );
+assert_true( isset( $GLOBALS['ksh_test_shortcodes'][ Shortcode::TAG ] ), 'plugin boot keeps public shortcode' );
+assert_true( isset( $GLOBALS['ksh_test_actions']['wp_enqueue_scripts'][0] ), 'plugin boot keeps frontend style enqueue hook' );
+assert_same( $before, $fetch_count, 'plugin boot performs no remote acquisition' );
+
+$plugin_header = file_get_contents( __DIR__ . '/../wp-content/plugins/ksh-kanoon-articles/ksh-kanoon-articles.php' );
+assert_true( false !== strpos( $plugin_header, 'Version: ' . Plugin::VERSION ), 'plugin header and runtime version remain synchronized' );
 
 echo 'TEST_PASS assertions=' . $assertions . PHP_EOL;

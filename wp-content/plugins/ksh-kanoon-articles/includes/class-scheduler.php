@@ -57,21 +57,30 @@ final class Scheduler {
 	private $refresh;
 
 	/**
+	 * Current acquisition-contract qualification admission.
+	 *
+	 * @var Acquisition_Qualification
+	 */
+	private $qualification;
+
+	/**
 	 * Build scheduler with injectable WordPress primitives for deterministic tests.
 	 *
-	 * @param callable|null $next_scheduled       Next-event lookup.
-	 * @param callable|null $schedule_event       Recurring-event scheduler.
-	 * @param callable|null $clear_scheduled_hook Event remover.
-	 * @param callable|null $now                  Current Unix timestamp producer.
-	 * @param callable|null $get_schedule         Recurrence lookup.
+	 * @param callable|null                  $next_scheduled       Next-event lookup.
+	 * @param callable|null                  $schedule_event       Recurring-event scheduler.
+	 * @param callable|null                  $clear_scheduled_hook Event remover.
+	 * @param callable|null                  $now                  Current Unix timestamp producer.
+	 * @param callable|null                  $get_schedule         Recurrence lookup.
+	 * @param Acquisition_Qualification|null $qualification        Current-contract admission state.
 	 */
-	public function __construct( $next_scheduled = null, $schedule_event = null, $clear_scheduled_hook = null, $now = null, $get_schedule = null ) {
+	public function __construct( $next_scheduled = null, $schedule_event = null, $clear_scheduled_hook = null, $now = null, $get_schedule = null, Acquisition_Qualification $qualification = null ) {
 		$this->next_scheduled       = $next_scheduled ? $next_scheduled : 'wp_next_scheduled';
 		$this->schedule_event       = $schedule_event ? $schedule_event : 'wp_schedule_event';
 		$this->clear_scheduled_hook = $clear_scheduled_hook ? $clear_scheduled_hook : 'wp_clear_scheduled_hook';
 		$this->now                  = $now ? $now : 'time';
 		$this->get_schedule         = $get_schedule ? $get_schedule : 'wp_get_schedule';
 		$this->refresh              = null;
+		$this->qualification        = $qualification ? $qualification : new Acquisition_Qualification();
 	}
 
 	/**
@@ -87,14 +96,23 @@ final class Scheduler {
 	}
 
 	/**
-	 * Execute the canonical refresh path with explicit Cron attribution.
+	 * Execute Cron only when the exact current acquisition contract is qualified.
 	 *
-	 * This method is the persistent-evidence boundary for actual scheduled
-	 * callback execution. Merely having an event registered does not call it.
+	 * This guard closes the stale-event upgrade case independently from the same
+	 * fail-closed guard inside Refresh_Service.
 	 *
 	 * @return array<string,mixed>|null
 	 */
 	public function run_cron() {
+		if ( ! $this->qualification->is_qualified() ) {
+			return array(
+				'overall_status' => 'blocked',
+				'trigger'        => 'cron',
+				'reason'         => 'acquisition_contract_unqualified',
+				'contract_id'    => $this->qualification->current_contract_id(),
+			);
+		}
+
 		if ( ! $this->refresh instanceof Refresh_Service ) {
 			return null;
 		}
@@ -103,12 +121,25 @@ final class Scheduler {
 	}
 
 	/**
-	 * Ensure exactly one named daily event exists. Never performs acquisition.
+	 * Ensure one named daily event exists only for a qualified current contract.
 	 *
-	 * @return bool True when an event already exists or scheduling succeeds.
+	 * A stale event left by a previous plugin/acquisition contract is cleared while
+	 * unqualified. This method performs no remote acquisition.
+	 *
+	 * @return bool True when a qualified event already exists or scheduling succeeds.
 	 */
 	public function ensure_scheduled() {
 		$next = $this->next_scheduled;
+
+		if ( ! $this->qualification->is_qualified() ) {
+			if ( false !== $next( self::HOOK ) ) {
+				$clear = $this->clear_scheduled_hook;
+				$clear( self::HOOK );
+			}
+
+			return false;
+		}
+
 		if ( false !== $next( self::HOOK ) ) {
 			return true;
 		}

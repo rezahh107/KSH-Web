@@ -27,6 +27,13 @@ final class Refresh_Service {
 	private $store;
 
 	/**
+	 * Current acquisition-contract qualification admission.
+	 *
+	 * @var Acquisition_Qualification
+	 */
+	private $qualification;
+
+	/**
 	 * UTC timestamp producer.
 	 *
 	 * @var callable
@@ -43,42 +50,58 @@ final class Refresh_Service {
 	/**
 	 * Build the refresh service.
 	 *
-	 * @param Preview_Service $preview        Qualified candidate producer.
-	 * @param Snapshot_Store  $store          Local snapshot store.
-	 * @param callable|null   $clock          UTC timestamp producer for deterministic tests.
-	 * @param callable|null   $run_id_factory Run identity producer for deterministic tests.
+	 * The qualification dependency is intentionally last to preserve the existing
+	 * deterministic test constructor shape while production defaults still fail
+	 * closed through the persisted current-contract qualification state.
+	 *
+	 * @param Preview_Service                $preview       Qualified candidate producer.
+	 * @param Snapshot_Store                 $store         Local snapshot store.
+	 * @param callable|null                  $clock         UTC timestamp producer for deterministic tests.
+	 * @param callable|null                  $run_id_factory Run identity producer for deterministic tests.
+	 * @param Acquisition_Qualification|null $qualification Acquisition-contract admission state.
 	 */
-	public function __construct( Preview_Service $preview, Snapshot_Store $store, $clock = null, $run_id_factory = null ) {
+	public function __construct( Preview_Service $preview, Snapshot_Store $store, $clock = null, $run_id_factory = null, Acquisition_Qualification $qualification = null ) {
 		$this->preview        = $preview;
 		$this->store          = $store;
 		$this->clock          = $clock ? $clock : array( __CLASS__, 'utc_now' );
 		$this->run_id_factory = $run_id_factory ? $run_id_factory : array( __CLASS__, 'make_run_id' );
+		$this->qualification  = $qualification ? $qualification : new Acquisition_Qualification();
 	}
 
 	/**
 	 * Acquire, validate, and independently persist both lists.
 	 *
-	 * Production callers must pass an explicit Manual or Cron origin. Unknown is
-	 * retained only for legacy/unattributed compatibility and is not summarized
-	 * as either Manual or Cron evidence.
+	 * No canonical refresh caller is admitted until the exact current acquisition
+	 * contract has a valid qualification record. The guard runs before Preview/
+	 * acquisition and before any snapshot/attempt/run-summary mutation, so neither
+	 * stale historical qualification nor an alternate/legacy trigger can bypass it.
+	 *
+	 * Unknown origin remains readable for legacy attribution compatibility after
+	 * admission, but it receives no qualification exemption.
 	 *
 	 * @param string $trigger Refresh origin.
 	 * @return array<string,mixed>
 	 */
 	public function run( $trigger = 'unknown' ) {
-		$trigger        = $this->normalize_trigger( $trigger );
-		$clock          = $this->clock;
-		$run_id_factory = $this->run_id_factory;
-		$started_at     = (string) $clock();
-		$run_id         = (string) $run_id_factory( $trigger, $started_at );
-		$candidates     = $this->preview->run();
-		$latest         = $this->apply_candidate( 'latest', $candidates['latest'], $trigger, $run_id, $started_at );
-		$weekly         = $this->apply_candidate( 'weekly_popular', $candidates['weekly_popular'], $trigger, $run_id, $started_at );
-		$overall_status = $this->overall_status( $latest, $weekly );
-		$completed_at   = (string) $clock();
-		$summary        = $this->build_run_summary( $trigger, $run_id, $started_at, $completed_at, $overall_status, $latest, $weekly );
-		$summary_saved  = false;
-		$summary_reason = '';
+		$trigger = $this->normalize_trigger( $trigger );
+
+		if ( ! $this->qualification->is_qualified() ) {
+			return $this->blocked_result( $trigger );
+		}
+
+		$clock                   = $this->clock;
+		$run_id_factory          = $this->run_id_factory;
+		$acquisition_contract_id = $this->qualification->current_contract_id();
+		$started_at              = (string) $clock();
+		$run_id                  = (string) $run_id_factory( $trigger, $started_at );
+		$candidates              = $this->preview->run();
+		$latest                  = $this->apply_candidate( 'latest', $candidates['latest'], $trigger, $run_id, $started_at, $acquisition_contract_id );
+		$weekly                  = $this->apply_candidate( 'weekly_popular', $candidates['weekly_popular'], $trigger, $run_id, $started_at, $acquisition_contract_id );
+		$overall_status          = $this->overall_status( $latest, $weekly );
+		$completed_at            = (string) $clock();
+		$summary                 = $this->build_run_summary( $trigger, $run_id, $started_at, $completed_at, $overall_status, $latest, $weekly, $acquisition_contract_id );
+		$summary_saved           = false;
+		$summary_reason          = '';
 
 		if ( 'manual' === $trigger || 'cron' === $trigger ) {
 			$summary_saved = $this->store->save_run_summary( $trigger, $summary );
@@ -90,16 +113,17 @@ final class Refresh_Service {
 		}
 
 		return array(
-			'schema_version'       => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
-			'trigger'              => $trigger,
-			'run_id'               => $run_id,
-			'started_at'           => $started_at,
-			'completed_at'         => $completed_at,
-			'overall_status'       => $overall_status,
-			'latest'               => $latest,
-			'weekly_popular'       => $weekly,
-			'run_summary_recorded' => $summary_saved,
-			'run_summary_reason'   => $summary_reason,
+			'schema_version'          => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
+			'trigger'                 => $trigger,
+			'run_id'                  => $run_id,
+			'acquisition_contract_id' => $acquisition_contract_id,
+			'started_at'              => $started_at,
+			'completed_at'            => $completed_at,
+			'overall_status'          => $overall_status,
+			'latest'                  => $latest,
+			'weekly_popular'          => $weekly,
+			'run_summary_recorded'    => $summary_saved,
+			'run_summary_reason'      => $summary_reason,
 		);
 	}
 
@@ -124,16 +148,71 @@ final class Refresh_Service {
 	}
 
 	/**
-	 * Apply one candidate without allowing invalid data to replace LKG state.
+	 * Build a truthful no-mutation outcome for any unqualified canonical refresh call.
 	 *
-	 * @param string              $source       List identity.
-	 * @param array<string,mixed> $candidate    Candidate result.
-	 * @param string              $trigger      Refresh origin.
-	 * @param string              $run_id       Refresh run identity.
-	 * @param string              $attempted_at Shared run start timestamp.
+	 * @param string $trigger Blocked normalized origin.
 	 * @return array<string,mixed>
 	 */
-	private function apply_candidate( $source, $candidate, $trigger, $run_id, $attempted_at ) {
+	private function blocked_result( $trigger ) {
+		$latest = $this->blocked_list_outcome( 'latest', $trigger );
+		$weekly = $this->blocked_list_outcome( 'weekly_popular', $trigger );
+
+		return array(
+			'schema_version'       => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
+			'trigger'              => $trigger,
+			'run_id'               => null,
+			'started_at'           => '',
+			'completed_at'         => '',
+			'overall_status'       => 'blocked',
+			'reason'               => 'acquisition_contract_unqualified',
+			'contract_id'          => $this->qualification->current_contract_id(),
+			'latest'               => $latest,
+			'weekly_popular'       => $weekly,
+			'run_summary_recorded' => false,
+			'run_summary_reason'   => 'qualification_required',
+		);
+	}
+
+	/**
+	 * Project existing LKG state without writing blocked-attempt evidence.
+	 *
+	 * @param string $source  List identity.
+	 * @param string $trigger Blocked normalized origin.
+	 * @return array<string,mixed>
+	 */
+	private function blocked_list_outcome( $source, $trigger ) {
+		$current = $this->store->get_snapshot( $source );
+
+		return array(
+			'source'           => $source,
+			'trigger'          => $trigger,
+			'run_id'           => null,
+			'candidate_status' => 'blocked',
+			'candidate_count'  => 0,
+			'http_code'        => null,
+			'reason'           => 'acquisition_contract_unqualified',
+			'action'           => null === $current ? 'no_valid_snapshot_available' : 'preserved_previous',
+			'local_available'  => null !== $current,
+			'local_count'      => is_array( $current ) && isset( $current['count'] ) ? (int) $current['count'] : 0,
+			'updated_at'       => is_array( $current ) && isset( $current['updated_at'] ) ? (string) $current['updated_at'] : '',
+			'attempted_at'     => '',
+			'attempt_recorded' => false,
+			'attempt_reason'   => 'qualification_required',
+		);
+	}
+
+	/**
+	 * Apply one candidate without allowing invalid data to replace LKG state.
+	 *
+	 * @param string              $source                  List identity.
+	 * @param array<string,mixed> $candidate               Candidate result.
+	 * @param string              $trigger                 Refresh origin.
+	 * @param string              $run_id                  Refresh run identity.
+	 * @param string              $attempted_at            Shared run start timestamp.
+	 * @param string              $acquisition_contract_id Acquisition contract producing the run.
+	 * @return array<string,mixed>
+	 */
+	private function apply_candidate( $source, $candidate, $trigger, $run_id, $attempted_at, $acquisition_contract_id ) {
 		$before      = $this->store->get_snapshot( $source );
 		$status      = isset( $candidate['status'] ) ? (string) $candidate['status'] : 'failure';
 		$reason      = isset( $candidate['reason'] ) ? (string) $candidate['reason'] : '';
@@ -163,49 +242,53 @@ final class Refresh_Service {
 			$reason,
 			$action,
 			$trigger,
-			$run_id
+			$run_id,
+			$acquisition_contract_id
 		);
 		$attempt_reason   = $attempt_recorded ? '' : 'attempt_write_failed';
 
 		return array(
-			'source'           => $source,
-			'trigger'          => $trigger,
-			'run_id'           => $run_id,
-			'candidate_status' => $status,
-			'candidate_count'  => isset( $candidate['count'] ) ? (int) $candidate['count'] : 0,
-			'http_code'        => is_numeric( $http_code ) ? (int) $http_code : null,
-			'reason'           => $reason,
-			'action'           => $action,
-			'local_available'  => null !== $current,
-			'local_count'      => is_array( $current ) && isset( $current['count'] ) ? (int) $current['count'] : 0,
-			'updated_at'       => is_array( $current ) && isset( $current['updated_at'] ) ? (string) $current['updated_at'] : '',
-			'attempted_at'     => $attempted_at,
-			'attempt_recorded' => $attempt_recorded,
-			'attempt_reason'   => $attempt_reason,
+			'source'                  => $source,
+			'trigger'                 => $trigger,
+			'run_id'                  => $run_id,
+			'acquisition_contract_id' => $acquisition_contract_id,
+			'candidate_status'        => $status,
+			'candidate_count'         => isset( $candidate['count'] ) ? (int) $candidate['count'] : 0,
+			'http_code'               => is_numeric( $http_code ) ? (int) $http_code : null,
+			'reason'                  => $reason,
+			'action'                  => $action,
+			'local_available'         => null !== $current,
+			'local_count'             => is_array( $current ) && isset( $current['count'] ) ? (int) $current['count'] : 0,
+			'updated_at'              => is_array( $current ) && isset( $current['updated_at'] ) ? (string) $current['updated_at'] : '',
+			'attempted_at'            => $attempted_at,
+			'attempt_recorded'        => $attempt_recorded,
+			'attempt_reason'          => $attempt_reason,
 		);
 	}
 
 	/**
 	 * Build the bounded run summary persisted separately by explicit origin.
 	 *
-	 * @param string              $trigger        Refresh origin.
-	 * @param string              $run_id         Refresh run identity.
-	 * @param string              $started_at     Run start timestamp.
-	 * @param string              $completed_at   Run completion timestamp.
-	 * @param string              $overall_status Combined result.
-	 * @param array<string,mixed> $latest         Latest outcome.
-	 * @param array<string,mixed> $weekly         Weekly outcome.
+	 * @param string              $trigger                 Refresh origin.
+	 * @param string              $run_id                  Refresh run identity.
+	 * @param string              $started_at              Run start timestamp.
+	 * @param string              $completed_at            Run completion timestamp.
+	 * @param string              $overall_status          Combined result.
+	 * @param array<string,mixed> $latest                  Latest outcome.
+	 * @param array<string,mixed> $weekly                  Weekly outcome.
+	 * @param string              $acquisition_contract_id Acquisition contract producing the run.
 	 * @return array<string,mixed>
 	 */
-	private function build_run_summary( $trigger, $run_id, $started_at, $completed_at, $overall_status, $latest, $weekly ) {
+	private function build_run_summary( $trigger, $run_id, $started_at, $completed_at, $overall_status, $latest, $weekly, $acquisition_contract_id ) {
 		return array(
-			'schema_version' => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
-			'trigger'        => $trigger,
-			'run_id'         => $run_id,
-			'started_at'     => $started_at,
-			'completed_at'   => $completed_at,
-			'overall_status' => $overall_status,
-			'lists'          => array(
+			'schema_version'          => Snapshot_Store::RUN_SUMMARY_SCHEMA_VERSION,
+			'trigger'                 => $trigger,
+			'run_id'                  => $run_id,
+			'acquisition_contract_id' => $acquisition_contract_id,
+			'started_at'              => $started_at,
+			'completed_at'            => $completed_at,
+			'overall_status'          => $overall_status,
+			'lists'                   => array(
 				'latest'         => $this->summarize_outcome( $latest ),
 				'weekly_popular' => $this->summarize_outcome( $weekly ),
 			),

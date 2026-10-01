@@ -13,8 +13,8 @@ namespace KSH\KanoonArticles;
 final class Snapshot_Store {
 
 	const SCHEMA_VERSION             = 1;
-	const ATTEMPT_SCHEMA_VERSION     = 2;
-	const RUN_SUMMARY_SCHEMA_VERSION = 1;
+	const ATTEMPT_SCHEMA_VERSION     = 3;
+	const RUN_SUMMARY_SCHEMA_VERSION = 2;
 
 	const OPTION_LATEST_SNAPSHOT = 'ksh_kanoon_articles_latest_snapshot';
 	const OPTION_WEEKLY_SNAPSHOT = 'ksh_kanoon_articles_weekly_snapshot';
@@ -131,32 +131,34 @@ final class Snapshot_Store {
 	/**
 	 * Record bounded attempt metadata independently of the last-known-good snapshot.
 	 *
-	 * @param string $source           List identity.
-	 * @param string $attempted_at     UTC ISO-8601 timestamp.
-	 * @param string $candidate_status Candidate status.
-	 * @param mixed  $http_code        HTTP status code when available.
-	 * @param string $reason           Bounded reason code.
-	 * @param string $action           Persistence action taken.
-	 * @param string $trigger          Explicit refresh origin when known.
-	 * @param string $run_id           Bounded refresh run identity when known.
+	 * @param string $source                  List identity.
+	 * @param string $attempted_at            UTC ISO-8601 timestamp.
+	 * @param string $candidate_status        Candidate status.
+	 * @param mixed  $http_code               HTTP status code when available.
+	 * @param string $reason                  Bounded reason code.
+	 * @param string $action                  Persistence action taken.
+	 * @param string $trigger                 Explicit refresh origin when known.
+	 * @param string $run_id                  Bounded refresh run identity when known.
+	 * @param string $acquisition_contract_id Acquisition contract that produced this attempt.
 	 * @return bool
 	 */
-	public function save_attempt( $source, $attempted_at, $candidate_status, $http_code, $reason, $action, $trigger = 'unknown', $run_id = '' ) {
+	public function save_attempt( $source, $attempted_at, $candidate_status, $http_code, $reason, $action, $trigger = 'unknown', $run_id = '', $acquisition_contract_id = '' ) {
 		$option = $this->attempt_option( $source );
 		if ( '' === $option ) {
 			return false;
 		}
 
 		$attempt = array(
-			'schema_version'   => self::ATTEMPT_SCHEMA_VERSION,
-			'source'           => $source,
-			'trigger'          => $this->normalize_trigger( $trigger ),
-			'run_id'           => '' !== (string) $run_id ? (string) $run_id : null,
-			'attempted_at'     => (string) $attempted_at,
-			'candidate_status' => (string) $candidate_status,
-			'http_code'        => is_numeric( $http_code ) ? (int) $http_code : null,
-			'reason'           => (string) $reason,
-			'action'           => (string) $action,
+			'schema_version'          => self::ATTEMPT_SCHEMA_VERSION,
+			'source'                  => $source,
+			'trigger'                 => $this->normalize_trigger( $trigger ),
+			'run_id'                  => '' !== (string) $run_id ? (string) $run_id : null,
+			'acquisition_contract_id' => '' !== (string) $acquisition_contract_id ? (string) $acquisition_contract_id : null,
+			'attempted_at'            => (string) $attempted_at,
+			'candidate_status'        => (string) $candidate_status,
+			'http_code'               => is_numeric( $http_code ) ? (int) $http_code : null,
+			'reason'                  => (string) $reason,
+			'action'                  => (string) $action,
 		);
 
 		return $this->write_option( $option, $attempt );
@@ -175,8 +177,9 @@ final class Snapshot_Store {
 			return false;
 		}
 
-		$summary['schema_version'] = self::RUN_SUMMARY_SCHEMA_VERSION;
-		$summary['trigger']        = $this->normalize_trigger( $trigger );
+		$summary['schema_version']          = self::RUN_SUMMARY_SCHEMA_VERSION;
+		$summary['trigger']                 = $this->normalize_trigger( $trigger );
+		$summary['acquisition_contract_id'] = ! empty( $summary['acquisition_contract_id'] ) ? (string) $summary['acquisition_contract_id'] : null;
 
 		return $this->write_option( $option, $summary );
 	}

@@ -12,7 +12,7 @@ namespace KSH\KanoonArticles;
  */
 final class Plugin {
 
-	const VERSION = '0.3.1';
+	const VERSION = '0.4.0';
 
 	/**
 	 * Bootstrap plugin hooks.
@@ -20,25 +20,28 @@ final class Plugin {
 	 * @return void
 	 */
 	public static function boot() {
-		$fetcher    = new Remote_Fetcher();
-		$parser     = new Article_Parser();
-		$preview    = new Preview_Service( array( $fetcher, 'fetch' ), $parser );
-		$store      = new Snapshot_Store();
-		$refresh    = new Refresh_Service( $preview, $store );
-		$scheduler  = new Scheduler();
-		$diagnostic = new Diagnostic_Report( $store, $scheduler );
-		$admin      = new Admin_Page( $preview, $refresh, $store, $scheduler, $diagnostic );
-		$renderer   = new Frontend_Renderer( $store );
-		$shortcode  = new Shortcode( $renderer );
+		$fetcher       = new Remote_Fetcher();
+		$parser        = new Article_Parser();
+		$preview       = new Preview_Service( array( $fetcher, 'fetch' ), $parser );
+		$qualification = new Acquisition_Qualification( $preview );
+		$store         = new Snapshot_Store();
+		$refresh       = new Refresh_Service( $preview, $store, null, null, $qualification );
+		$scheduler     = new Scheduler( null, null, null, null, null, $qualification );
+		$diagnostic    = new Diagnostic_Report( $store, $scheduler, null, null, $qualification );
+		$admin         = new Admin_Page( $preview, $refresh, $store, $scheduler, $diagnostic );
+		$qualify_admin = new Qualification_Admin_Page( $qualification, $scheduler );
+		$renderer      = new Frontend_Renderer( $store );
+		$shortcode     = new Shortcode( $renderer );
 
 		$scheduler->register( $refresh );
 		$shortcode->register();
 		add_action( 'admin_menu', array( $admin, 'register' ) );
+		add_action( 'admin_menu', array( $qualify_admin, 'register' ) );
 		add_action( 'admin_post_' . Admin_Page::EXPORT_ACTION, array( $admin, 'download_diagnostic' ) );
 	}
 
 	/**
-	 * Activation only ensures scheduling; it never performs remote acquisition.
+	 * Activation only ensures scheduling when the current acquisition contract is qualified.
 	 *
 	 * @return void
 	 */

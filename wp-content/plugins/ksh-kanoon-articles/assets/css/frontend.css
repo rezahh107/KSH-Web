@@ -9,7 +9,7 @@
 	margin-block: clamp(2rem, 5vw, 4rem);
 	color: var(--ksh-kanoon-navy-strong);
 	font: inherit;
-	line-height: 1.7;
+	line-height: 1.6;
 }
 
 .ksh-kanoon-articles * {
@@ -70,7 +70,7 @@
 
 .ksh-kanoon-articles .ksh-kanoon-articles__item {
 	min-inline-size: 0;
-	padding-block: 0.8rem;
+	padding-block: 0.55rem;
 	border-block-end: 1px solid var(--ksh-kanoon-border);
 }
 
@@ -82,8 +82,9 @@
 .ksh-kanoon-articles .ksh-kanoon-articles__link {
 	display: inline;
 	color: var(--ksh-kanoon-navy);
+	font-size: 0.875rem;
 	font-weight: 650;
-	line-height: 1.75;
+	line-height: 1.6;
 	text-decoration: none;
 	overflow-wrap: anywhere;
 }
