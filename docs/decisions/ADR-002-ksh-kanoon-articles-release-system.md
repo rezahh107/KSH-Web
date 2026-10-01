@@ -79,16 +79,19 @@ The admissible states are:
 
 - `ABSENT` — neither tag nor Release exists. Create the exact lightweight tag and then the Release with the exact pre-qualified ZIP.
 - `TAG_ONLY_MATCHING` — the expected tag exists, is a lightweight commit tag, and targets exactly the handoff `integrated_sha`; the Release is absent. Reuse the immutable tag and create only the Release plus asset.
-- `RELEASE_MATCHING_ASSET_MISSING` — the expected tag and Release exist; tag target, Release name, draft/prerelease state and reviewed notes all match the handoff; there are no unexpected uploaded assets; and the expected asset is absent. Upload only the exact handed-off ZIP without clobber/overwrite semantics.
+- `RELEASE_MATCHING_ASSET_MISSING` — the expected tag and Release exist; tag target, Release name, draft/prerelease state and reviewed notes all match the handoff; there are no unexpected assets; and the expected asset is absent. Upload only the exact handed-off ZIP without clobber/overwrite semantics.
+- `RELEASE_MATCHING_STARTER_ASSET` — the surrounding tag/Release/notes identity matches the handoff, exactly one expected-name asset exists, no unexpected assets exist, and GitHub reports that asset as `state=starter` with `size=0`. This is the narrow failed-upload artifact documented by GitHub for an upstream Release Asset upload failure. Delete only that exact starter asset by its GitHub `asset_id`, require the deletion API call to succeed, then upload the exact pre-qualified handoff ZIP. No normal uploaded asset is eligible for this deletion path.
 - `PUBLISHED_MATCHING` — the tag, Release metadata/notes and expected asset already match the handoff, including downloaded asset SHA-256. Perform no mutation and continue through the normal last-mile verification so the run can converge to `PUBLISHED_AND_VERIFIED`.
 
-Every other state fails closed before mutation. Examples include a wrong tag target, a Release existing without its expected tag, unexpected Release title/draft/prerelease state, release-note mismatch, ambiguous/unexpected uploaded assets, or an expected-name asset whose GitHub digest or downloaded SHA-256 differs from the qualified artifact.
+GitHub's Release Asset API documents that an upstream upload failure may return HTTP `502` and leave an empty asset with `state=starter`, and explicitly states that such a starter asset can be safely deleted. The Release Asset delete endpoint is bound to the asset's numeric `asset_id`; the workflow uses that supported boundary rather than any generic replacement operation.
 
-An existing tag is never moved or rewritten. An existing asset is never overwritten or replaced. Recovery uses only missing operations that are safe for the exact matching state. A failed mutation preserves any successful immutable state; the next canonical run re-classifies remote state before attempting another mutation.
+Every other state fails closed before mutation. Examples include a wrong tag target, a Release existing without its expected tag, unexpected Release title/draft/prerelease state, release-note mismatch, multiple or unexpected assets, a `starter` asset that is not empty, an unsupported asset state, or an ordinary `uploaded` expected-name asset whose GitHub digest/downloaded SHA-256 differs from the qualified artifact.
+
+An existing tag is never moved or rewritten. A normal uploaded asset is never overwritten, deleted or replaced. The only asset deletion admitted is the exact numeric ID of the uniquely qualified empty `starter` asset described above. If deletion fails or its result is uncertain, upload is not attempted. If starter deletion succeeds but the subsequent upload fails, the run fails without rollback; the next canonical run re-classifies the resulting remote state and may safely continue from `RELEASE_MATCHING_ASSET_MISSING` or another newly observed qualified state.
 
 ### Last-mile verification
 
-After normal publication, recovery publication, or a no-op `PUBLISHED_MATCHING` convergence, the write-authority job downloads the Release asset through GitHub again and compares its SHA-256 with the pre-qualified SHA. It also verifies tag target, Release metadata, GitHub asset digest when available, and release-note identity. It reports `PUBLISHED_AND_VERIFIED` only after those checks pass.
+After normal publication, recovery publication, starter recovery, or a no-op `PUBLISHED_MATCHING` convergence, the write-authority job downloads the Release asset through GitHub again and compares its SHA-256 with the pre-qualified SHA. It also verifies tag target, Release metadata, GitHub asset digest when available, and release-note identity. It reports `PUBLISHED_AND_VERIFIED` only after those checks pass.
 
 ### Security and concurrency
 
@@ -100,7 +103,8 @@ After normal publication, recovery publication, or a no-op `PUBLISHED_MATCHING` 
 - the publish job is gated by successful prepare completion;
 - a release-unit concurrency group prevents overlapping publication runs;
 - remote publication state is re-classified immediately before mutation and ambiguity fails closed;
-- no recovery path moves a tag, clobbers an asset, or silently rewrites published history.
+- no recovery path moves a tag or uses general asset clobber/overwrite semantics;
+- only a uniquely qualified empty GitHub `starter` asset may be deleted, by its exact asset ID.
 
 ## Consequences
 
