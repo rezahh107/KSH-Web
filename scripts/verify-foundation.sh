@@ -19,6 +19,7 @@ required_files=(
   "docs/decisions/ADR-001-kanoon-article-list-mirror.md"
   "docs/decisions/ADR-002-ksh-kanoon-articles-release-system.md"
   "docs/releases/ksh-kanoon-articles/TEMPLATE.md"
+  "docs/releases/ksh-kanoon-articles/README.md"
   "elementor/homepage/README.md"
   "elementor/homepage/ksh-public-homepage-body-v1.json"
   "scripts/validate-elementor-homepage.php"
