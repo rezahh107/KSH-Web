@@ -19,13 +19,74 @@ expect_failure() {
   fi
 }
 
+workflow="$repo_root/.github/workflows/publish-ksh-kanoon-articles.yml"
+prepare_job="$tmp_dir/prepare-job.yml"
+publish_job="$tmp_dir/publish-job.yml"
+awk '/^  prepare:/{capture=1} /^  publish:/{capture=0} capture' "$workflow" > "$prepare_job"
+awk '/^  publish:/{capture=1} capture' "$workflow" > "$publish_job"
+[[ -s "$prepare_job" && -s "$publish_job" ]] || fail 'release workflow jobs could not be isolated for regression checks'
+
 # workflow_dispatch input is untrusted shell data. It must cross the expression
 # boundary through an environment variable and only then be syntax-validated.
-workflow="$repo_root/.github/workflows/publish-ksh-kanoon-articles.yml"
 input_refs="$(grep -Fc '${{ inputs.pr_number }}' "$workflow")"
 [[ "$input_refs" == '1' ]] || fail 'PR number input must have exactly one expression reference'
-grep -Fq 'PR_NUMBER: ${{ inputs.pr_number }}' "$workflow" || fail 'PR number input is not passed through env'
-grep -Fq 'pr_number="$PR_NUMBER"' "$workflow" || fail 'PR number shell value is not read from env'
+grep -Fq 'PR_NUMBER: ${{ inputs.pr_number }}' "$prepare_job" || fail 'PR number input is not passed through env'
+grep -Fq 'pr_number="$PR_NUMBER"' "$prepare_job" || fail 'PR number shell value is not read from env'
+
+# Qualification/preparation owns repository-controlled execution and must be read-only.
+grep -Fq 'contents: read' "$prepare_job" || fail 'prepare job does not declare contents: read'
+grep -Fq 'actions: read' "$prepare_job" || fail 'prepare job does not declare actions: read'
+grep -Fq 'pull-requests: read' "$prepare_job" || fail 'prepare job does not declare pull-requests: read'
+if grep -Fq 'contents: write' "$prepare_job"; then
+  fail 'prepare job must not have contents: write'
+fi
+for required in \
+  'actions/checkout@' \
+  'setup-php@' \
+  'bash scripts/verify-foundation.sh' \
+  'build-ksh-kanoon-articles.sh' \
+  'verify-ksh-kanoon-articles-zip.sh'; do
+  grep -Fq "$required" "$prepare_job" || fail "prepare job missing required qualification/build boundary: $required"
+done
+grep -Fq 'composer install' "$repo_root/scripts/verify-foundation.sh" || fail 'canonical verification no longer exercises Composer installation'
+
+# Write authority is isolated to publication and consumes only the qualified handoff.
+grep -Fq 'needs: prepare' "$publish_job" || fail 'publish job is not gated on successful prepare job completion'
+grep -Fq 'contents: write' "$publish_job" || fail 'publish job does not declare contents: write'
+if grep -Eq '^    env:' "$workflow"; then
+  fail 'workflow defines job-wide environment data; GitHub authentication must be step-scoped'
+fi
+for forbidden in \
+  'actions/checkout@' \
+  'setup-php@' \
+  'verify-foundation.sh' \
+  'composer ' \
+  'build-ksh-kanoon-articles.sh' \
+  'verify-ksh-kanoon-articles-zip.sh'; do
+  if grep -Fq "$forbidden" "$publish_job"; then
+    fail "write-authority publish job executes forbidden repository/dependency tooling: $forbidden"
+  fi
+done
+if grep -Fq 'if: always()' "$publish_job"; then
+  fail 'publish job must not bypass failed preparation with always()'
+fi
+
+# The immutable handoff must carry the exact pre-qualified artifact and identity.
+grep -Fq 'actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a' "$prepare_job" || fail 'prepare job does not upload the immutable handoff with the pinned action'
+grep -Fq 'actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53' "$publish_job" || fail 'publish job does not download the qualified handoff with the pinned action'
+grep -Fq 'artifact_sha256' "$prepare_job" || fail 'prepare handoff omits canonical artifact SHA-256'
+grep -Fq 'actual_artifact_sha="$(sha256sum "$artifact"' "$publish_job" || fail 'publish job does not hash the handed-off canonical artifact'
+grep -Fq 'actual_artifact_sha" != "$expected_artifact_sha' "$publish_job" || fail 'publish job does not bind the handed-off artifact to the qualified SHA-256'
+
+# Existing candidate/integrated identity and conflict gates must remain fail closed.
+grep -Fq 'candidate_tree' "$prepare_job" || fail 'candidate plugin-tree identity is missing'
+grep -Fq 'integrated_tree' "$prepare_job" || fail 'integrated plugin-tree identity is missing'
+grep -Fq 'candidate_tree" != "$integrated_tree' "$prepare_job" || fail 'plugin-tree mismatch does not fail closed'
+grep -Fq 'candidate_notes_sha' "$prepare_job" || fail 'candidate release-note identity is missing'
+grep -Fq 'integrated_notes_sha' "$prepare_job" || fail 'integrated release-note identity is missing'
+grep -Fq 'candidate_notes_sha" != "$integrated_notes_sha' "$prepare_job" || fail 'release-note identity mismatch does not fail closed'
+grep -Fq 'git/ref/tags/${tag}' "$publish_job" || fail 'publish job does not recheck tag conflict immediately before mutation'
+grep -Fq 'releases/tags/${tag}' "$publish_job" || fail 'publish job does not recheck Release conflict immediately before mutation'
 
 version="$($script_dir/ksh-kanoon-articles-version.sh)"
 [[ -n "$version" ]] || fail 'version resolver returned empty version'
@@ -76,8 +137,9 @@ mv "$tmp_dir/forbidden.zip" "$tmp_dir/ksh-kanoon-articles-v${version}.zip"
 expect_failure 'forbidden development content' \
   "$script_dir/verify-ksh-kanoon-articles-zip.sh" "$tmp_dir/ksh-kanoon-articles-v${version}.zip" "$version"
 
-notes="$tmp_dir/notes.md"
-cat > "$notes" <<'NOTES'
+# Release notes need substantive content in every mandatory section.
+valid_notes="$tmp_dir/valid-notes.md"
+cat > "$valid_notes" <<'NOTES'
 ## What changed
 - Bounded release-system test fixture.
 
@@ -87,9 +149,47 @@ cat > "$notes" <<'NOTES'
 ## Evidence boundary
 - This is test-only content.
 NOTES
-"$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$notes" >/dev/null
-sed -i '/## Evidence boundary/,$d' "$notes"
+"$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$valid_notes" >/dev/null
+
+headings_only="$tmp_dir/headings-only.md"
+cat > "$headings_only" <<'NOTES'
+## What changed
+
+## Real-host qualification
+
+## Evidence boundary
+NOTES
+expect_failure 'mandatory headings without substantive content' \
+  "$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$headings_only"
+
+template_copy="$tmp_dir/template-copy.md"
+cp "$repo_root/docs/releases/ksh-kanoon-articles/TEMPLATE.md" "$template_copy"
+expect_failure 'unchanged instructional template copy' \
+  "$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$template_copy"
+
+missing_boundary="$tmp_dir/missing-boundary.md"
+cat > "$missing_boundary" <<'NOTES'
+## What changed
+- Change.
+
+## Real-host qualification
+- NOT_PROVEN.
+NOTES
 expect_failure 'missing evidence-boundary notes' \
-  "$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$notes"
+  "$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$missing_boundary"
+
+todo_notes="$tmp_dir/todo-notes.md"
+cat > "$todo_notes" <<'NOTES'
+## What changed
+- TODO describe change.
+
+## Real-host qualification
+- NOT_PROVEN.
+
+## Evidence boundary
+- Boundary stated.
+NOTES
+expect_failure 'unresolved TODO/TBD release notes' \
+  "$script_dir/verify-ksh-kanoon-articles-release-notes.sh" "$todo_notes"
 
 printf 'KSH_RELEASE_SYSTEM_TEST_PASS version=%s\n' "$version"
