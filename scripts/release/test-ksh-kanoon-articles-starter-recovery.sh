@@ -177,6 +177,33 @@ run_apply() {
       "$state" "$expected_target" "$tag" "$expected_title" "$notes_fixture" "$artifact_fixture" "$starter_asset_id"
 }
 
+assert_classifier_blocks_mutation() {
+  local label="$1"
+  local log="$2"
+  shift 2
+  : > "$log"
+  local state
+  if state="$(classify_publication_state "$@" 2>/dev/null)"; then
+    PATH="$mock_bin:$PATH" MOCK_GH_LOG="$log" apply_publication_state \
+      "$state" "$expected_target" "$tag" "$expected_title" "$notes_fixture" "$artifact_fixture" '4242' >/dev/null 2>&1 || true
+    fail "$label unexpectedly passed classification"
+  fi
+  [[ ! -s "$log" ]] || fail "$label reached delete/upload mutation after classifier rejection"
+}
+
+wrong_tag_log="$tmp_dir/wrong-tag.log"
+assert_classifier_blocks_mutation 'wrong tag target with starter' "$wrong_tag_log" \
+  'FOUND' 'FOUND' "$wrong_target" "$expected_target" "$expected_title" "$expected_title" 'false' 'false' 'true' 'STARTER_RECOVERABLE'
+metadata_mismatch_log="$tmp_dir/metadata-mismatch.log"
+assert_classifier_blocks_mutation 'Release metadata mismatch with starter' "$metadata_mismatch_log" \
+  'FOUND' 'FOUND' "$expected_target" "$expected_target" 'Wrong title' "$expected_title" 'false' 'false' 'true' 'STARTER_RECOVERABLE'
+notes_mismatch_log="$tmp_dir/notes-mismatch.log"
+assert_classifier_blocks_mutation 'Release notes mismatch with starter' "$notes_mismatch_log" \
+  'FOUND' 'FOUND' "$expected_target" "$expected_target" "$expected_title" "$expected_title" 'false' 'false' 'false' 'STARTER_RECOVERABLE'
+ordinary_mismatch_log="$tmp_dir/ordinary-mismatch.log"
+assert_classifier_blocks_mutation 'ordinary uploaded mismatching asset' "$ordinary_mismatch_log" \
+  'FOUND' 'FOUND' "$expected_target" "$expected_target" "$expected_title" "$expected_title" 'false' 'false' 'true' 'MISMATCH'
+
 starter_recovery_log="$tmp_dir/starter-recovery.log"
 run_apply 'RELEASE_MATCHING_STARTER_ASSET' '4242' "$starter_recovery_log"
 [[ "$(wc -l < "$starter_recovery_log")" -eq 2 ]] || fail 'starter recovery must perform exactly delete then upload'
@@ -211,6 +238,8 @@ grep -Fq 'release upload ksh-kanoon-articles-v9.9.9' "$upload_failure_log" || fa
 if grep -Fq -- '--clobber' "$upload_failure_log"; then
   fail 'post-delete retry path used forbidden clobber semantics'
 fi
+expect_state 'post-delete upload failure can rerun from missing-asset state' 'RELEASE_MATCHING_ASSET_MISSING' \
+  'FOUND' 'FOUND' "$expected_target" "$expected_target" "$expected_title" "$expected_title" 'false' 'false' 'true' 'MISSING'
 
 published_log="$tmp_dir/published.log"
 run_apply 'PUBLISHED_MATCHING' '' "$published_log"
