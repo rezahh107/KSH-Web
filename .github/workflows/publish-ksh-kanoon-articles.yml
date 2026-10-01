@@ -8,20 +8,18 @@ on:
         required: true
         type: string
 
-permissions:
-  contents: write
-  actions: read
-  pull-requests: read
-
 concurrency:
   group: publish-ksh-kanoon-articles
   cancel-in-progress: false
 
 jobs:
-  publish:
+  prepare:
+    name: Qualify and prepare immutable publication handoff
     runs-on: ubuntu-24.04
-    env:
-      GH_TOKEN: ${{ github.token }}
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
     steps:
       - name: Require default-branch publication control
         shell: bash
@@ -36,6 +34,7 @@ jobs:
         id: resolve
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ inputs.pr_number }}
         run: |
           set -euo pipefail
@@ -104,12 +103,15 @@ jobs:
         shell: bash
         run: bash scripts/verify-foundation.sh
 
-      - name: Resolve release identity and notes
+      - name: Resolve release identity and reviewed notes
         id: identity
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           integrated_sha='${{ steps.resolve.outputs.integrated_sha }}'
+          pr_head='${{ steps.resolve.outputs.pr_head }}'
           version="$(bash scripts/release/ksh-kanoon-articles-version.sh --ref "$integrated_sha")"
           tag="ksh-kanoon-articles-v${version}"
           title="KSH Kanoon Articles v${version}"
@@ -117,7 +119,7 @@ jobs:
 
           bash scripts/release/verify-ksh-kanoon-articles-release-notes.sh "$notes"
 
-          candidate_notes_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${notes}?ref=${{ steps.resolve.outputs.pr_head }}" --jq '.sha')"
+          candidate_notes_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${notes}?ref=${pr_head}" --jq '.sha')"
           integrated_notes_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${notes}?ref=${integrated_sha}" --jq '.sha')"
           if [[ -z "$candidate_notes_sha" || "$candidate_notes_sha" != "$integrated_notes_sha" ]]; then
             echo "Reviewed release notes do not match integrated release notes" >&2
@@ -129,10 +131,13 @@ jobs:
             echo "tag=$tag"
             echo "title=$title"
             echo "notes=$notes"
+            echo "notes_blob_sha=$integrated_notes_sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Fail closed on existing release identity
+      - name: Preflight existing release identity
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           tag='${{ steps.identity.outputs.tag }}'
@@ -161,28 +166,163 @@ jobs:
             echo "sha256=$sha256"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Recheck immutable identity immediately before publication
+      - name: Assemble immutable publication handoff
         shell: bash
         run: |
           set -euo pipefail
-          tag='${{ steps.identity.outputs.tag }}'
+          handoff="$RUNNER_TEMP/ksh-publication-handoff"
+          mkdir -p "$handoff"
+
+          artifact='${{ steps.artifact.outputs.path }}'
+          artifact_name='${{ steps.artifact.outputs.name }}'
+          notes='${{ steps.identity.outputs.notes }}'
+          cp "$artifact" "$handoff/$artifact_name"
+          cp "$notes" "$handoff/release-notes.md"
+
+          notes_sha256="$(sha256sum "$handoff/release-notes.md" | awk '{print $1}')"
+          jq -n \
+            --arg pr_number '${{ steps.resolve.outputs.pr_number }}' \
+            --arg reviewed_pr_head '${{ steps.resolve.outputs.pr_head }}' \
+            --arg integrated_sha '${{ steps.resolve.outputs.integrated_sha }}' \
+            --arg plugin_tree '${{ steps.resolve.outputs.plugin_tree }}' \
+            --arg version '${{ steps.identity.outputs.version }}' \
+            --arg tag '${{ steps.identity.outputs.tag }}' \
+            --arg title '${{ steps.identity.outputs.title }}' \
+            --arg release_notes_blob_sha '${{ steps.identity.outputs.notes_blob_sha }}' \
+            --arg release_notes_sha256 "$notes_sha256" \
+            --arg artifact_name "$artifact_name" \
+            --arg artifact_sha256 '${{ steps.artifact.outputs.sha256 }}' \
+            '{
+              pr_number: $pr_number,
+              reviewed_pr_head: $reviewed_pr_head,
+              integrated_sha: $integrated_sha,
+              plugin_tree: $plugin_tree,
+              version: $version,
+              tag: $tag,
+              title: $title,
+              release_notes_blob_sha: $release_notes_blob_sha,
+              release_notes_sha256: $release_notes_sha256,
+              artifact_name: $artifact_name,
+              artifact_sha256: $artifact_sha256
+            }' > "$handoff/metadata.json"
+
+          [[ -s "$handoff/metadata.json" && -s "$handoff/release-notes.md" && -s "$handoff/$artifact_name" ]]
+
+      - name: Upload immutable publication handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ksh-kanoon-articles-publication-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ksh-publication-handoff/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish pre-qualified immutable handoff
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download qualified publication handoff
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
+        with:
+          name: ksh-kanoon-articles-publication-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ksh-publication-handoff
+
+      - name: Verify handoff identity and canonical artifact SHA
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="$RUNNER_TEMP/ksh-publication-handoff"
+          metadata="$handoff/metadata.json"
+          notes="$handoff/release-notes.md"
+          [[ -s "$metadata" && -s "$notes" ]] || { echo 'Qualified publication handoff is incomplete' >&2; exit 1; }
+
+          pr_number="$(jq -er '.pr_number' "$metadata")"
+          pr_head="$(jq -er '.reviewed_pr_head' "$metadata")"
+          integrated_sha="$(jq -er '.integrated_sha' "$metadata")"
+          plugin_tree="$(jq -er '.plugin_tree' "$metadata")"
+          version="$(jq -er '.version' "$metadata")"
+          tag="$(jq -er '.tag' "$metadata")"
+          title="$(jq -er '.title' "$metadata")"
+          notes_blob_sha="$(jq -er '.release_notes_blob_sha' "$metadata")"
+          expected_notes_sha="$(jq -er '.release_notes_sha256' "$metadata")"
+          artifact_name="$(jq -er '.artifact_name' "$metadata")"
+          expected_artifact_sha="$(jq -er '.artifact_sha256' "$metadata")"
+
+          [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]
+          [[ "$pr_head" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$integrated_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$plugin_tree" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$notes_blob_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$expected_notes_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$expected_artifact_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+
+          expected_tag="ksh-kanoon-articles-v${version}"
+          expected_title="KSH Kanoon Articles v${version}"
+          expected_artifact_name="ksh-kanoon-articles-v${version}.zip"
+          [[ "$tag" == "$expected_tag" && "$title" == "$expected_title" && "$artifact_name" == "$expected_artifact_name" ]] || {
+            echo 'Qualified publication identity is internally inconsistent' >&2
+            exit 1
+          }
+
+          artifact="$handoff/$artifact_name"
+          [[ -s "$artifact" ]] || { echo "Qualified artifact missing: $artifact_name" >&2; exit 1; }
+          actual_artifact_sha="$(sha256sum "$artifact" | awk '{print $1}')"
+          actual_notes_sha="$(sha256sum "$notes" | awk '{print $1}')"
+          if [[ "$actual_artifact_sha" != "$expected_artifact_sha" ]]; then
+            echo "Qualified artifact handoff SHA-256 mismatch: expected=$expected_artifact_sha actual=$actual_artifact_sha" >&2
+            exit 1
+          fi
+          if [[ "$actual_notes_sha" != "$expected_notes_sha" ]]; then
+            echo "Qualified release-notes handoff SHA-256 mismatch: expected=$expected_notes_sha actual=$actual_notes_sha" >&2
+            exit 1
+          fi
+
+          {
+            echo "pr_number=$pr_number"
+            echo "pr_head=$pr_head"
+            echo "integrated_sha=$integrated_sha"
+            echo "plugin_tree=$plugin_tree"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "title=$title"
+            echo "notes=$notes"
+            echo "notes_blob_sha=$notes_blob_sha"
+            echo "artifact=$artifact"
+            echo "artifact_name=$artifact_name"
+            echo "artifact_sha256=$expected_artifact_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Recheck immutable identity immediately before publication
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.handoff.outputs.tag }}'
           if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1 || \
              gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" >/dev/null 2>&1; then
             echo "Release identity appeared during publication preparation: $tag" >&2
             exit 1
           fi
 
-      - name: Publish exact tag, Release and asset
-        id: publish
+      - name: Publish exact tag, Release and pre-qualified asset
+        id: publish_release
         continue-on-error: true
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          integrated_sha='${{ steps.resolve.outputs.integrated_sha }}'
-          tag='${{ steps.identity.outputs.tag }}'
-          title='${{ steps.identity.outputs.title }}'
-          notes='${{ steps.identity.outputs.notes }}'
-          artifact='${{ steps.artifact.outputs.path }}'
+          integrated_sha='${{ steps.handoff.outputs.integrated_sha }}'
+          tag='${{ steps.handoff.outputs.tag }}'
+          title='${{ steps.handoff.outputs.title }}'
+          notes='${{ steps.handoff.outputs.notes }}'
+          artifact='${{ steps.handoff.outputs.artifact }}'
 
           gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
             -f ref="refs/tags/${tag}" \
@@ -196,11 +336,13 @@ jobs:
             --notes-file "$notes"
 
       - name: Report partial publication failure
-        if: steps.publish.outcome == 'failure'
+        if: steps.publish_release.outcome == 'failure'
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag='${{ steps.identity.outputs.tag }}'
+          tag='${{ steps.handoff.outputs.tag }}'
           tag_state='absent'
           release_state='absent'
           if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
@@ -212,23 +354,26 @@ jobs:
           {
             echo '## KSH release publication failed'
             echo
-            echo "- State: PARTIALLY_PUBLISHED or FAILED"
+            echo '- State: PARTIALLY_PUBLISHED or FAILED'
             echo "- Tag: $tag_state"
             echo "- Release: $release_state"
             echo '- No tag/release rollback or history rewrite was attempted.'
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
-      - name: Download and independently verify published asset
+      - name: Download and verify published release identity
         id: verify_published
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          tag='${{ steps.identity.outputs.tag }}'
-          version='${{ steps.identity.outputs.version }}'
-          asset_name='${{ steps.artifact.outputs.name }}'
-          expected_sha='${{ steps.artifact.outputs.sha256 }}'
-          integrated_sha='${{ steps.resolve.outputs.integrated_sha }}'
+          tag='${{ steps.handoff.outputs.tag }}'
+          title='${{ steps.handoff.outputs.title }}'
+          asset_name='${{ steps.handoff.outputs.artifact_name }}'
+          expected_sha='${{ steps.handoff.outputs.artifact_sha256 }}'
+          integrated_sha='${{ steps.handoff.outputs.integrated_sha }}'
+          notes='${{ steps.handoff.outputs.notes }}'
           published_dir="$RUNNER_TEMP/ksh-published"
           mkdir -p "$published_dir"
 
@@ -244,8 +389,6 @@ jobs:
             exit 1
           fi
 
-          bash scripts/release/verify-ksh-kanoon-articles-zip.sh "$published_asset" "$version"
-
           tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha')"
           if [[ "$tag_sha" != "$integrated_sha" ]]; then
             echo "Published tag target mismatch: expected=$integrated_sha actual=$tag_sha" >&2
@@ -258,9 +401,9 @@ jobs:
           release_url="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.html_url')"
           remote_digest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq ".assets[] | select(.name == \"${asset_name}\") | .digest // \"\"")"
           published_notes="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.body')"
-          expected_notes="$(cat '${{ steps.identity.outputs.notes }}')"
+          expected_notes="$(cat "$notes")"
 
-          if [[ "$draft" != 'false' || "$prerelease" != 'false' || "$release_name" != '${{ steps.identity.outputs.title }}' ]]; then
+          if [[ "$draft" != 'false' || "$prerelease" != 'false' || "$release_name" != "$title" ]]; then
             echo "Published Release metadata mismatch" >&2
             exit 1
           fi
@@ -269,7 +412,7 @@ jobs:
             exit 1
           fi
           if [[ "$published_notes" != "$expected_notes" ]]; then
-            echo "Published Release notes differ from reviewed notes file" >&2
+            echo "Published Release notes differ from the qualified reviewed notes" >&2
             exit 1
           fi
 
@@ -286,10 +429,10 @@ jobs:
             echo
             echo '- State: **PUBLISHED_AND_VERIFIED**'
             echo '- Release: ${{ steps.verify_published.outputs.release_url }}'
-            echo '- Tag: `${{ steps.identity.outputs.tag }}`'
-            echo '- Target: `${{ steps.resolve.outputs.integrated_sha }}`'
-            echo '- Asset: `${{ steps.artifact.outputs.name }}`'
+            echo '- Tag: `${{ steps.handoff.outputs.tag }}`'
+            echo '- Target: `${{ steps.handoff.outputs.integrated_sha }}`'
+            echo '- Asset: `${{ steps.handoff.outputs.artifact_name }}`'
             echo '- SHA-256: `${{ steps.verify_published.outputs.published_sha256 }}`'
-            echo '- Reviewed PR Head: `${{ steps.resolve.outputs.pr_head }}`'
-            echo '- Plugin subtree identity: `${{ steps.resolve.outputs.plugin_tree }}`'
+            echo '- Reviewed PR Head: `${{ steps.handoff.outputs.pr_head }}`'
+            echo '- Plugin subtree identity: `${{ steps.handoff.outputs.plugin_tree }}`'
           } >> "$GITHUB_STEP_SUMMARY"
