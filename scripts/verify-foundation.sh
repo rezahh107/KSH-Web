@@ -17,9 +17,19 @@ required_files=(
   "docs/design/UI_REFERENCE.md"
   "docs/design/assets/homepage-responsive-reference.webp"
   "docs/decisions/ADR-001-kanoon-article-list-mirror.md"
+  "docs/decisions/ADR-002-ksh-kanoon-articles-release-system.md"
+  "docs/releases/ksh-kanoon-articles/TEMPLATE.md"
+  "docs/releases/ksh-kanoon-articles/README.md"
   "elementor/homepage/README.md"
   "elementor/homepage/ksh-public-homepage-body-v1.json"
   "scripts/validate-elementor-homepage.php"
+  "scripts/release/ksh-kanoon-articles-version.sh"
+  "scripts/release/build-ksh-kanoon-articles.sh"
+  "scripts/release/verify-ksh-kanoon-articles-zip.sh"
+  "scripts/release/verify-ksh-kanoon-articles-release-notes.sh"
+  "scripts/release/test-ksh-kanoon-articles-release.sh"
+  "scripts/release/test-ksh-kanoon-articles-starter-recovery.sh"
+  ".github/workflows/publish-ksh-kanoon-articles.yml"
   "wp-content/plugins/ksh-kanoon-articles/ksh-kanoon-articles.php"
   "tests/run.php"
 )
@@ -70,6 +80,13 @@ if ! command -v composer >/dev/null 2>&1; then
   exit 1
 fi
 
+for command_name in git unzip sha256sum; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "FOUNDATION_VERIFY_FAIL: release verification requires $command_name" >&2
+    exit 1
+  fi
+done
+
 while IFS= read -r php_file; do
   php -l "$php_file" >/dev/null
 done < <(find wp-content/plugins/ksh-kanoon-articles tests scripts -type f -name '*.php' -print | sort)
@@ -79,6 +96,9 @@ echo "PHP_SYNTAX_PASS"
 php scripts/validate-elementor-homepage.php
 
 echo "ELEMENTOR_HOMEPAGE_VERIFY_PASS"
+
+bash scripts/release/test-ksh-kanoon-articles-release.sh
+bash scripts/release/test-ksh-kanoon-articles-starter-recovery.sh
 
 composer install --no-interaction --no-progress --prefer-dist
 composer cs

@@ -1,0 +1,737 @@
+name: Publish KSH Kanoon Articles
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Merged release-intended PR number'
+        required: true
+        type: string
+
+concurrency:
+  group: publish-ksh-kanoon-articles
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Qualify and prepare immutable publication handoff
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+    steps:
+      - name: Require default-branch publication control
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != 'refs/heads/main' ]]; then
+            echo "Production publication must be dispatched from main; got $GITHUB_REF" >&2
+            exit 1
+          fi
+
+      - name: Resolve reviewed candidate and integrated source
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+        run: |
+          set -euo pipefail
+          pr_number="$PR_NUMBER"
+          if [[ ! "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Invalid PR number: $pr_number" >&2
+            exit 1
+          fi
+
+          api="repos/${GITHUB_REPOSITORY}/pulls/${pr_number}"
+          merged="$(gh api "$api" --jq '.merged')"
+          base_ref="$(gh api "$api" --jq '.base.ref')"
+          pr_head="$(gh api "$api" --jq '.head.sha')"
+          integrated_sha="$(gh api "$api" --jq '.merge_commit_sha')"
+
+          if [[ "$merged" != 'true' ]]; then
+            echo "Release PR #$pr_number is not merged" >&2
+            exit 1
+          fi
+          if [[ "$base_ref" != 'main' ]]; then
+            echo "Release PR #$pr_number was not merged into main (base=$base_ref)" >&2
+            exit 1
+          fi
+          if [[ ! "$pr_head" =~ ^[0-9a-f]{40}$ || ! "$integrated_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Unable to resolve immutable candidate/integrated SHAs" >&2
+            exit 1
+          fi
+
+          successful_runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/foundation-verify.yml/runs?event=pull_request&head_sha=${pr_head}&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')"
+          if [[ "$successful_runs" == '0' ]]; then
+            echo "No successful Foundation Verify pull-request run exists for exact PR Head $pr_head" >&2
+            exit 1
+          fi
+
+          candidate_tree="$(gh api "repos/${GITHUB_REPOSITORY}/contents/wp-content/plugins?ref=${pr_head}" --jq '.[] | select(.name == "ksh-kanoon-articles" and .type == "dir") | .sha')"
+          integrated_tree="$(gh api "repos/${GITHUB_REPOSITORY}/contents/wp-content/plugins?ref=${integrated_sha}" --jq '.[] | select(.name == "ksh-kanoon-articles" and .type == "dir") | .sha')"
+          if [[ -z "$candidate_tree" || -z "$integrated_tree" || "$candidate_tree" != "$integrated_tree" ]]; then
+            echo "Reviewed candidate plugin subtree does not match integrated source" >&2
+            echo "candidate_tree=$candidate_tree integrated_tree=$integrated_tree" >&2
+            exit 1
+          fi
+
+          {
+            echo "pr_number=$pr_number"
+            echo "pr_head=$pr_head"
+            echo "integrated_sha=$integrated_sha"
+            echo "plugin_tree=$integrated_tree"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact integrated source
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ steps.resolve.outputs.integrated_sha }}
+
+      - name: Set up PHP verification runtime
+        uses: shivammathur/setup-php@bf6b4fbd49ca58e4608c9c89fba0b8d90bd2a39f
+        with:
+          php-version: '8.3'
+          extensions: dom, libxml, mbstring, xmlreader
+          tools: composer:v2
+          coverage: none
+
+      - name: Re-qualify exact integrated source
+        shell: bash
+        run: bash scripts/verify-foundation.sh
+
+      - name: Resolve release identity and reviewed notes
+        id: identity
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          integrated_sha='${{ steps.resolve.outputs.integrated_sha }}'
+          pr_head='${{ steps.resolve.outputs.pr_head }}'
+          version="$(bash scripts/release/ksh-kanoon-articles-version.sh --ref "$integrated_sha")"
+          tag="ksh-kanoon-articles-v${version}"
+          title="KSH Kanoon Articles v${version}"
+          notes="docs/releases/ksh-kanoon-articles/v${version}.md"
+
+          bash scripts/release/verify-ksh-kanoon-articles-release-notes.sh "$notes"
+
+          candidate_notes_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${notes}?ref=${pr_head}" --jq '.sha')"
+          integrated_notes_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/${notes}?ref=${integrated_sha}" --jq '.sha')"
+          if [[ -z "$candidate_notes_sha" || "$candidate_notes_sha" != "$integrated_notes_sha" ]]; then
+            echo "Reviewed release notes do not match integrated release notes" >&2
+            exit 1
+          fi
+
+          {
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "title=$title"
+            echo "notes=$notes"
+            echo "notes_blob_sha=$integrated_notes_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and verify production artifact
+        id: artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          integrated_sha='${{ steps.resolve.outputs.integrated_sha }}'
+          version='${{ steps.identity.outputs.version }}'
+          artifact="$(bash scripts/release/build-ksh-kanoon-articles.sh "$integrated_sha" "$RUNNER_TEMP/ksh-release")"
+          bash scripts/release/verify-ksh-kanoon-articles-zip.sh "$artifact" "$version"
+          sha256="$(sha256sum "$artifact" | awk '{print $1}')"
+          {
+            echo "path=$artifact"
+            echo "name=$(basename "$artifact")"
+            echo "sha256=$sha256"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Assemble immutable publication handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="$RUNNER_TEMP/ksh-publication-handoff"
+          mkdir -p "$handoff"
+
+          artifact='${{ steps.artifact.outputs.path }}'
+          artifact_name='${{ steps.artifact.outputs.name }}'
+          notes='${{ steps.identity.outputs.notes }}'
+          cp "$artifact" "$handoff/$artifact_name"
+          cp "$notes" "$handoff/release-notes.md"
+
+          notes_sha256="$(sha256sum "$handoff/release-notes.md" | awk '{print $1}')"
+          jq -n \
+            --arg pr_number '${{ steps.resolve.outputs.pr_number }}' \
+            --arg reviewed_pr_head '${{ steps.resolve.outputs.pr_head }}' \
+            --arg integrated_sha '${{ steps.resolve.outputs.integrated_sha }}' \
+            --arg plugin_tree '${{ steps.resolve.outputs.plugin_tree }}' \
+            --arg version '${{ steps.identity.outputs.version }}' \
+            --arg tag '${{ steps.identity.outputs.tag }}' \
+            --arg title '${{ steps.identity.outputs.title }}' \
+            --arg release_notes_blob_sha '${{ steps.identity.outputs.notes_blob_sha }}' \
+            --arg release_notes_sha256 "$notes_sha256" \
+            --arg artifact_name "$artifact_name" \
+            --arg artifact_sha256 '${{ steps.artifact.outputs.sha256 }}' \
+            '{
+              pr_number: $pr_number,
+              reviewed_pr_head: $reviewed_pr_head,
+              integrated_sha: $integrated_sha,
+              plugin_tree: $plugin_tree,
+              version: $version,
+              tag: $tag,
+              title: $title,
+              release_notes_blob_sha: $release_notes_blob_sha,
+              release_notes_sha256: $release_notes_sha256,
+              artifact_name: $artifact_name,
+              artifact_sha256: $artifact_sha256
+            }' > "$handoff/metadata.json"
+
+          [[ -s "$handoff/metadata.json" && -s "$handoff/release-notes.md" && -s "$handoff/$artifact_name" ]]
+
+      - name: Upload immutable publication handoff
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: ksh-kanoon-articles-publication-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ksh-publication-handoff/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish pre-qualified immutable handoff
+    needs: prepare
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - name: Download qualified publication handoff
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
+        with:
+          name: ksh-kanoon-articles-publication-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/ksh-publication-handoff
+
+      - name: Verify handoff identity and canonical artifact SHA
+        id: handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="$RUNNER_TEMP/ksh-publication-handoff"
+          metadata="$handoff/metadata.json"
+          notes="$handoff/release-notes.md"
+          [[ -s "$metadata" && -s "$notes" ]] || { echo 'Qualified publication handoff is incomplete' >&2; exit 1; }
+
+          pr_number="$(jq -er '.pr_number' "$metadata")"
+          pr_head="$(jq -er '.reviewed_pr_head' "$metadata")"
+          integrated_sha="$(jq -er '.integrated_sha' "$metadata")"
+          plugin_tree="$(jq -er '.plugin_tree' "$metadata")"
+          version="$(jq -er '.version' "$metadata")"
+          tag="$(jq -er '.tag' "$metadata")"
+          title="$(jq -er '.title' "$metadata")"
+          notes_blob_sha="$(jq -er '.release_notes_blob_sha' "$metadata")"
+          expected_notes_sha="$(jq -er '.release_notes_sha256' "$metadata")"
+          artifact_name="$(jq -er '.artifact_name' "$metadata")"
+          expected_artifact_sha="$(jq -er '.artifact_sha256' "$metadata")"
+
+          [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]
+          [[ "$pr_head" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$integrated_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$plugin_tree" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$notes_blob_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$expected_notes_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$expected_artifact_sha" =~ ^[0-9a-f]{64}$ ]]
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+
+          expected_tag="ksh-kanoon-articles-v${version}"
+          expected_title="KSH Kanoon Articles v${version}"
+          expected_artifact_name="ksh-kanoon-articles-v${version}.zip"
+          [[ "$tag" == "$expected_tag" && "$title" == "$expected_title" && "$artifact_name" == "$expected_artifact_name" ]] || {
+            echo 'Qualified publication identity is internally inconsistent' >&2
+            exit 1
+          }
+
+          artifact="$handoff/$artifact_name"
+          [[ -s "$artifact" ]] || { echo "Qualified artifact missing: $artifact_name" >&2; exit 1; }
+          actual_artifact_sha="$(sha256sum "$artifact" | awk '{print $1}')"
+          actual_notes_sha="$(sha256sum "$notes" | awk '{print $1}')"
+          if [[ "$actual_artifact_sha" != "$expected_artifact_sha" ]]; then
+            echo "Qualified artifact handoff SHA-256 mismatch: expected=$expected_artifact_sha actual=$actual_artifact_sha" >&2
+            exit 1
+          fi
+          if [[ "$actual_notes_sha" != "$expected_notes_sha" ]]; then
+            echo "Qualified release-notes handoff SHA-256 mismatch: expected=$expected_notes_sha actual=$actual_notes_sha" >&2
+            exit 1
+          fi
+
+          {
+            echo "pr_number=$pr_number"
+            echo "pr_head=$pr_head"
+            echo "integrated_sha=$integrated_sha"
+            echo "plugin_tree=$plugin_tree"
+            echo "version=$version"
+            echo "tag=$tag"
+            echo "title=$title"
+            echo "notes=$notes"
+            echo "notes_blob_sha=$notes_blob_sha"
+            echo "artifact=$artifact"
+            echo "artifact_name=$artifact_name"
+            echo "artifact_sha256=$expected_artifact_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Classify resumable remote publication state
+        id: remote_state
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # BEGIN KSH_GITHUB_API_GET_FUNCTION
+          github_api_get() {
+            local url="$1"
+            local body_path="$2"
+            local http_code
+            local curl_status
+
+            set +e
+            http_code="$(
+              curl --silent --show-error \
+                --connect-timeout 15 \
+                --max-time 60 \
+                --header 'Accept: application/vnd.github+json' \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header 'X-GitHub-Api-Version: 2022-11-28' \
+                --output "$body_path" \
+                --write-out '%{http_code}' \
+                "$url"
+            )"
+            curl_status=$?
+            set -e
+
+            if (( curl_status != 0 )); then
+              echo "GitHub API transport failure for $url (curl_status=$curl_status)" >&2
+              return 1
+            fi
+
+            case "$http_code" in
+              200)
+                printf 'FOUND\n'
+                ;;
+              404)
+                : > "$body_path"
+                printf 'NOT_FOUND\n'
+                ;;
+              *)
+                echo "GitHub API state is indeterminate for $url (HTTP $http_code)" >&2
+                if [[ -s "$body_path" ]]; then
+                  cat "$body_path" >&2
+                fi
+                return 1
+                ;;
+            esac
+          }
+          # END KSH_GITHUB_API_GET_FUNCTION
+
+          # BEGIN KSH_RELEASE_ASSET_STATE_CLASSIFIER_FUNCTION
+          classify_release_asset_state() {
+            local release_json="$1"
+            local asset_name="$2"
+            local expected_sha="$3"
+            local tag="$4"
+            local probe_dir="$5"
+            local expected_asset_count
+            local unexpected_asset_count
+
+            expected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)] | length' "$release_json")" || return 1
+            unexpected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name != $name)] | length' "$release_json")" || return 1
+
+            if (( unexpected_asset_count > 0 || expected_asset_count > 1 )); then
+              printf 'AMBIGUOUS|\n'
+              return 0
+            fi
+            if (( expected_asset_count == 0 )); then
+              printf 'MISSING|\n'
+              return 0
+            fi
+
+            local remote_state
+            local remote_size
+            local remote_id
+            local remote_digest
+            remote_state="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].state // ""' "$release_json")" || return 1
+            remote_size="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].size' "$release_json")" || return 1
+            remote_id="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].id' "$release_json")" || return 1
+
+            case "$remote_state" in
+              starter)
+                if [[ "$remote_id" =~ ^[1-9][0-9]*$ && "$remote_size" == '0' ]]; then
+                  printf 'STARTER_RECOVERABLE|%s\n' "$remote_id"
+                else
+                  printf 'STARTER_INVALID|\n'
+                fi
+                ;;
+              uploaded)
+                remote_digest="$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].digest // ""' "$release_json")" || return 1
+                if [[ -n "$remote_digest" && "$remote_digest" != "sha256:${expected_sha}" ]]; then
+                  printf 'MISMATCH|\n'
+                  return 0
+                fi
+
+                local existing_dir="$probe_dir/existing-asset"
+                local existing_asset="$existing_dir/$asset_name"
+                local existing_sha
+                mkdir -p "$existing_dir"
+                rm -f "$existing_asset"
+                if ! gh release download "$tag" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --pattern "$asset_name" \
+                  --dir "$existing_dir"; then
+                  echo 'Unable to download existing Release asset; publication state is indeterminate' >&2
+                  return 1
+                fi
+                [[ -s "$existing_asset" ]] || {
+                  echo 'Existing uploaded Release asset download is missing/empty; publication state is indeterminate' >&2
+                  return 1
+                }
+                existing_sha="$(sha256sum "$existing_asset" | awk '{print $1}')"
+                if [[ "$existing_sha" == "$expected_sha" ]]; then
+                  printf 'MATCHING|\n'
+                else
+                  printf 'MISMATCH|\n'
+                fi
+                ;;
+              *)
+                printf 'UNKNOWN|\n'
+                ;;
+            esac
+          }
+          # END KSH_RELEASE_ASSET_STATE_CLASSIFIER_FUNCTION
+
+          # BEGIN KSH_PUBLICATION_STATE_CLASSIFIER_FUNCTION
+          classify_publication_state() {
+            local tag_presence="$1"
+            local release_presence="$2"
+            local tag_target="$3"
+            local expected_target="$4"
+            local release_name="$5"
+            local expected_title="$6"
+            local draft="$7"
+            local prerelease="$8"
+            local notes_match="$9"
+            local asset_state="${10}"
+
+            case "${tag_presence}:${release_presence}" in
+              NOT_FOUND:NOT_FOUND)
+                printf 'ABSENT\n'
+                return 0
+                ;;
+              FOUND:NOT_FOUND)
+                if [[ "$tag_target" != "$expected_target" ]]; then
+                  echo "Existing tag target mismatch: expected=$expected_target actual=$tag_target" >&2
+                  return 1
+                fi
+                printf 'TAG_ONLY_MATCHING\n'
+                return 0
+                ;;
+              NOT_FOUND:FOUND)
+                echo 'Release exists while expected tag is absent; refusing ambiguous publication state' >&2
+                return 1
+                ;;
+              FOUND:FOUND)
+                if [[ "$tag_target" != "$expected_target" ]]; then
+                  echo "Existing tag target mismatch: expected=$expected_target actual=$tag_target" >&2
+                  return 1
+                fi
+                if [[ "$release_name" != "$expected_title" || "$draft" != 'false' || "$prerelease" != 'false' ]]; then
+                  echo 'Existing Release metadata does not match qualified handoff' >&2
+                  return 1
+                fi
+                if [[ "$notes_match" != 'true' ]]; then
+                  echo 'Existing Release notes do not match qualified handoff' >&2
+                  return 1
+                fi
+                case "$asset_state" in
+                  MISSING)
+                    printf 'RELEASE_MATCHING_ASSET_MISSING\n'
+                    return 0
+                    ;;
+                  STARTER_RECOVERABLE)
+                    printf 'RELEASE_MATCHING_STARTER_ASSET\n'
+                    return 0
+                    ;;
+                  MATCHING)
+                    printf 'PUBLISHED_MATCHING\n'
+                    return 0
+                    ;;
+                  MISMATCH)
+                    echo 'Existing expected-name uploaded asset content does not match qualified artifact' >&2
+                    return 1
+                    ;;
+                  STARTER_INVALID)
+                    echo 'Expected-name starter asset does not match the documented empty failed-upload shape' >&2
+                    return 1
+                    ;;
+                  AMBIGUOUS)
+                    echo 'Existing Release asset set is ambiguous or contains unexpected assets' >&2
+                    return 1
+                    ;;
+                  UNKNOWN)
+                    echo 'Existing expected-name asset has an unsupported GitHub asset state' >&2
+                    return 1
+                    ;;
+                  *)
+                    echo "Unknown asset state: $asset_state" >&2
+                    return 1
+                    ;;
+                esac
+                ;;
+              *)
+                echo "Unknown GitHub presence state: tag=$tag_presence release=$release_presence" >&2
+                return 1
+                ;;
+            esac
+          }
+          # END KSH_PUBLICATION_STATE_CLASSIFIER_FUNCTION
+
+          tag='${{ steps.handoff.outputs.tag }}'
+          title='${{ steps.handoff.outputs.title }}'
+          integrated_sha='${{ steps.handoff.outputs.integrated_sha }}'
+          notes='${{ steps.handoff.outputs.notes }}'
+          asset_name='${{ steps.handoff.outputs.artifact_name }}'
+          expected_sha='${{ steps.handoff.outputs.artifact_sha256 }}'
+          probe_dir="$RUNNER_TEMP/ksh-remote-state"
+          mkdir -p "$probe_dir"
+          tag_json="$probe_dir/tag.json"
+          release_json="$probe_dir/release.json"
+
+          tag_presence="$(github_api_get "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" "$tag_json")" || exit 1
+          release_presence="$(github_api_get "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" "$release_json")" || exit 1
+
+          tag_target=''
+          release_name=''
+          draft=''
+          prerelease=''
+          notes_match='false'
+          asset_state='MISSING'
+          starter_asset_id=''
+
+          if [[ "$tag_presence" == 'FOUND' ]]; then
+            tag_type="$(jq -er '.object.type' "$tag_json")"
+            tag_target="$(jq -er '.object.sha' "$tag_json")"
+            if [[ "$tag_type" != 'commit' ]]; then
+              echo "Expected lightweight commit tag; found object type: $tag_type" >&2
+              exit 1
+            fi
+          fi
+
+          if [[ "$release_presence" == 'FOUND' ]]; then
+            release_name="$(jq -er '.name // ""' "$release_json")"
+            draft="$(jq -er '.draft' "$release_json")"
+            prerelease="$(jq -er '.prerelease' "$release_json")"
+            published_notes="$(jq -r '.body // ""' "$release_json")"
+            expected_notes="$(cat "$notes")"
+            if [[ "$published_notes" == "$expected_notes" ]]; then
+              notes_match='true'
+            fi
+
+            asset_probe="$(classify_release_asset_state \
+              "$release_json" \
+              "$asset_name" \
+              "$expected_sha" \
+              "$tag" \
+              "$probe_dir")" || exit 1
+            if [[ "$asset_probe" != *'|'* ]]; then
+              echo 'Release asset classifier returned malformed output' >&2
+              exit 1
+            fi
+            asset_state="${asset_probe%%|*}"
+            starter_asset_id="${asset_probe#*|}"
+          fi
+
+          state="$(classify_publication_state \
+            "$tag_presence" \
+            "$release_presence" \
+            "$tag_target" \
+            "$integrated_sha" \
+            "$release_name" \
+            "$title" \
+            "$draft" \
+            "$prerelease" \
+            "$notes_match" \
+            "$asset_state")" || exit 1
+
+          echo "Publication state: $state"
+          {
+            echo "state=$state"
+            echo "starter_asset_id=$starter_asset_id"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish or resume exact qualified state
+        id: publish_release
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # BEGIN KSH_APPLY_PUBLICATION_STATE_FUNCTION
+          apply_publication_state() {
+            local state="$1"
+            local integrated_sha="$2"
+            local tag="$3"
+            local title="$4"
+            local notes="$5"
+            local artifact="$6"
+            local starter_asset_id="${7:-}"
+
+            case "$state" in
+              ABSENT)
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                  -f ref="refs/tags/${tag}" \
+                  -f sha="$integrated_sha" >/dev/null
+                gh release create "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --verify-tag \
+                  --target "$integrated_sha" \
+                  --title "$title" \
+                  --notes-file "$notes"
+                ;;
+              TAG_ONLY_MATCHING)
+                gh release create "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --verify-tag \
+                  --target "$integrated_sha" \
+                  --title "$title" \
+                  --notes-file "$notes"
+                ;;
+              RELEASE_MATCHING_ASSET_MISSING)
+                gh release upload "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY"
+                ;;
+              RELEASE_MATCHING_STARTER_ASSET)
+                if [[ ! "$starter_asset_id" =~ ^[1-9][0-9]*$ ]]; then
+                  echo 'Recoverable starter state is missing a valid GitHub asset ID' >&2
+                  return 1
+                fi
+                if ! gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${starter_asset_id}" >/dev/null; then
+                  echo "Failed to delete documented GitHub starter asset id=$starter_asset_id; refusing upload" >&2
+                  return 1
+                fi
+                gh release upload "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY"
+                ;;
+              PUBLISHED_MATCHING)
+                echo 'Exact matching publication already exists; no mutation required.'
+                ;;
+              *)
+                echo "Unsupported publication state: $state" >&2
+                return 1
+                ;;
+            esac
+          }
+          # END KSH_APPLY_PUBLICATION_STATE_FUNCTION
+
+          apply_publication_state \
+            '${{ steps.remote_state.outputs.state }}' \
+            '${{ steps.handoff.outputs.integrated_sha }}' \
+            '${{ steps.handoff.outputs.tag }}' \
+            '${{ steps.handoff.outputs.title }}' \
+            '${{ steps.handoff.outputs.notes }}' \
+            '${{ steps.handoff.outputs.artifact }}' \
+            '${{ steps.remote_state.outputs.starter_asset_id }}'
+
+      - name: Report publication mutation failure
+        if: steps.publish_release.outcome == 'failure'
+        shell: bash
+        run: |
+          {
+            echo '## KSH release publication mutation failed'
+            echo
+            echo '- Starting qualified remote state: `${{ steps.remote_state.outputs.state }}`'
+            echo '- Remote post-failure state was not guessed from a failed API call.'
+            echo '- No tag move, ordinary asset overwrite, rollback or history rewrite was attempted.'
+            echo '- If a documented starter asset was deleted before a later upload failure, a canonical re-run will safely re-classify the resulting missing/starter state.'
+            echo '- Re-run the canonical workflow; it will re-classify the remote state before any further mutation.'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 1
+
+      - name: Download and verify published release identity
+        id: verify_published
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='${{ steps.handoff.outputs.tag }}'
+          title='${{ steps.handoff.outputs.title }}'
+          asset_name='${{ steps.handoff.outputs.artifact_name }}'
+          expected_sha='${{ steps.handoff.outputs.artifact_sha256 }}'
+          integrated_sha='${{ steps.handoff.outputs.integrated_sha }}'
+          notes='${{ steps.handoff.outputs.notes }}'
+          published_dir="$RUNNER_TEMP/ksh-published"
+          mkdir -p "$published_dir"
+
+          gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$asset_name" \
+            --dir "$published_dir"
+
+          published_asset="$published_dir/$asset_name"
+          actual_sha="$(sha256sum "$published_asset" | awk '{print $1}')"
+          if [[ "$actual_sha" != "$expected_sha" ]]; then
+            echo "Published asset SHA-256 mismatch: expected=$expected_sha actual=$actual_sha" >&2
+            exit 1
+          fi
+
+          tag_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha')"
+          if [[ "$tag_sha" != "$integrated_sha" ]]; then
+            echo "Published tag target mismatch: expected=$integrated_sha actual=$tag_sha" >&2
+            exit 1
+          fi
+
+          draft="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.draft')"
+          prerelease="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.prerelease')"
+          release_name="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.name')"
+          release_url="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.html_url')"
+          remote_digest="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq ".assets[] | select(.name == \"${asset_name}\") | .digest // \"\"")"
+          published_notes="$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" --jq '.body')"
+          expected_notes="$(cat "$notes")"
+
+          if [[ "$draft" != 'false' || "$prerelease" != 'false' || "$release_name" != "$title" ]]; then
+            echo "Published Release metadata mismatch" >&2
+            exit 1
+          fi
+          if [[ -n "$remote_digest" && "$remote_digest" != "sha256:${expected_sha}" ]]; then
+            echo "GitHub asset digest mismatch: expected=sha256:${expected_sha} actual=$remote_digest" >&2
+            exit 1
+          fi
+          if [[ "$published_notes" != "$expected_notes" ]]; then
+            echo "Published Release notes differ from the qualified reviewed notes" >&2
+            exit 1
+          fi
+
+          {
+            echo "release_url=$release_url"
+            echo "published_sha256=$actual_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Report verified publication
+        shell: bash
+        run: |
+          {
+            echo '## KSH Kanoon Articles release'
+            echo
+            echo '- State: **PUBLISHED_AND_VERIFIED**'
+            echo '- Recovery input state: `${{ steps.remote_state.outputs.state }}`'
+            echo '- Release: ${{ steps.verify_published.outputs.release_url }}'
+            echo '- Tag: `${{ steps.handoff.outputs.tag }}`'
+            echo '- Target: `${{ steps.handoff.outputs.integrated_sha }}`'
+            echo '- Asset: `${{ steps.handoff.outputs.artifact_name }}`'
+            echo '- SHA-256: `${{ steps.verify_published.outputs.published_sha256 }}`'
+            echo '- Reviewed PR Head: `${{ steps.handoff.outputs.pr_head }}`'
+            echo '- Plugin subtree identity: `${{ steps.handoff.outputs.plugin_tree }}`'
+          } >> "$GITHUB_STEP_SUMMARY"
