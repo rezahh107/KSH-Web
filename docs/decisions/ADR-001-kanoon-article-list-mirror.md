@@ -110,6 +110,24 @@ For an unqualified current contract:
 
 This double boundary is intentional: schedule state is not trusted as qualification evidence, and a stale WordPress Cron event must never become a write bypass. WordPress itself treats a registered recurring event as a hook that can later invoke its callback; registration and execution are separate lifecycle facts. The plugin therefore guards both effective scheduling and the writable callback path.
 
+### Operational execution-evidence provenance
+
+Qualification authority and execution evidence are separate facts. A contract may be qualified without having executed through Manual/Cron yet, and historical execution under an older contract must not be projected as execution of the current one.
+
+Newly persisted Manual/Cron run summaries therefore carry the exact `Source_Config::ACQUISITION_CONTRACT_ID` that produced them. Per-list attempts carry the same acquisition-contract identity because attempts participate in run correlation and observability checks.
+
+The diagnostic support artifact classifies persisted run/attempt evidence as:
+
+- `current_contract` — explicit identity exactly matches the current acquisition contract;
+- `legacy_unknown_contract` — historical evidence has no acquisition-contract identity;
+- `stale_contract` — evidence explicitly names a different acquisition contract.
+
+Only an exact `current_contract` Cron run summary may satisfy the current-contract `cron_execution_observed` claim. Qualification by itself cannot upgrade legacy/stale execution evidence. Manual and Cron provenance remain independent.
+
+Legacy and stale summaries/attempts are deliberately preserved and remain readable as historical support evidence. They are not deleted during upgrade and do not become current-contract proof merely because their trigger, timestamp, or run id is otherwise usable. Current-contract attempt/run correlation likewise requires current-contract provenance on the participating evidence.
+
+The diagnostic remains read-only and exposes the current contract id, current qualification status when available, and the provenance of persisted Manual/Cron evidence without weakening its privacy exclusions.
+
 ### Historical qualification status
 
 The original gate was executed by the Owner on the real KSH WordPress host using the merged v0.1.0 Preview implementation.
@@ -122,7 +140,7 @@ Observed at that historical execution:
 
 That evidence qualifies only the exact historical source/parser/runtime path that ran then. It does **not** qualify the later Owner-approved semantic change that moves Latest to the homepage `تازه‌ها` tab/list, and it does not prove future DOM/network stability.
 
-After merged PR #4, the Owner also observed a v0.2.1 Cron-origin successful acquisition/persistence/diagnostic run. That remains historical runtime evidence for the architecture, not proof of the new homepage-Latest DOM binding.
+After merged PR #4, the Owner also observed a v0.2.1 Cron-origin successful acquisition/persistence/diagnostic run. That remains historical runtime evidence for the architecture, not proof of the new homepage-Latest DOM binding. Because the historical summary predates acquisition-contract provenance, a current v0.4.0 diagnostic must retain it as `legacy_unknown_contract` evidence rather than treating it as current-contract Cron execution.
 
 Therefore the v0.4.0 homepage semantic contract remains **NOT_PROVEN on the real KSH host** until the Owner runs the repaired explicit qualification action successfully for `kanoon-homepage-semantic-lists-v1` on that host.
 
@@ -170,7 +188,8 @@ Not selected because they add dependencies or product scope without solving a cu
 - no recurring SaaS dependency required;
 - KSH-Web controls its own presentation;
 - acquisition retains valid owned data independently of the public 15-item display cap;
-- a changed acquisition contract cannot silently inherit old production write authority.
+- a changed acquisition contract cannot silently inherit old production write authority;
+- a changed acquisition contract cannot silently inherit old Manual/Cron execution proof.
 
 ### Risk
 
@@ -178,7 +197,7 @@ The primary operational risk is source DOM change on `kanoon.ir`.
 
 Containment is:
 
-`explicit contract identity + real-host qualification admission + strict semantic binding + per-list last-known-good + visible preview/status + bounded parser repair`
+`explicit contract identity + real-host qualification admission + contract-bound execution evidence + strict semantic binding + per-list last-known-good + visible preview/status + bounded parser repair`
 
 not additional scraping infrastructure by default.
 
