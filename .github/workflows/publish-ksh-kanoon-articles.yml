@@ -134,22 +134,6 @@ jobs:
             echo "notes_blob_sha=$integrated_notes_sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Preflight existing release identity
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          tag='${{ steps.identity.outputs.tag }}'
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
-            echo "Tag already exists: $tag" >&2
-            exit 1
-          fi
-          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" >/dev/null 2>&1; then
-            echo "Release already exists: $tag" >&2
-            exit 1
-          fi
-
       - name: Build and verify production artifact
         id: artifact
         shell: bash
@@ -297,20 +281,223 @@ jobs:
             echo "artifact_sha256=$expected_artifact_sha"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Recheck immutable identity immediately before publication
+      - name: Classify resumable remote publication state
+        id: remote_state
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+
+          # BEGIN KSH_GITHUB_API_GET_FUNCTION
+          github_api_get() {
+            local url="$1"
+            local body_path="$2"
+            local http_code
+            local curl_status
+
+            set +e
+            http_code="$(
+              curl --silent --show-error \
+                --connect-timeout 15 \
+                --max-time 60 \
+                --header 'Accept: application/vnd.github+json' \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header 'X-GitHub-Api-Version: 2022-11-28' \
+                --output "$body_path" \
+                --write-out '%{http_code}' \
+                "$url"
+            )"
+            curl_status=$?
+            set -e
+
+            if (( curl_status != 0 )); then
+              echo "GitHub API transport failure for $url (curl_status=$curl_status)" >&2
+              return 1
+            fi
+
+            case "$http_code" in
+              200)
+                printf 'FOUND\n'
+                ;;
+              404)
+                : > "$body_path"
+                printf 'NOT_FOUND\n'
+                ;;
+              *)
+                echo "GitHub API state is indeterminate for $url (HTTP $http_code)" >&2
+                if [[ -s "$body_path" ]]; then
+                  cat "$body_path" >&2
+                fi
+                return 1
+                ;;
+            esac
+          }
+          # END KSH_GITHUB_API_GET_FUNCTION
+
+          # BEGIN KSH_PUBLICATION_STATE_CLASSIFIER_FUNCTION
+          classify_publication_state() {
+            local tag_presence="$1"
+            local release_presence="$2"
+            local tag_target="$3"
+            local expected_target="$4"
+            local release_name="$5"
+            local expected_title="$6"
+            local draft="$7"
+            local prerelease="$8"
+            local notes_match="$9"
+            local asset_state="${10}"
+
+            case "${tag_presence}:${release_presence}" in
+              NOT_FOUND:NOT_FOUND)
+                printf 'ABSENT\n'
+                return 0
+                ;;
+              FOUND:NOT_FOUND)
+                if [[ "$tag_target" != "$expected_target" ]]; then
+                  echo "Existing tag target mismatch: expected=$expected_target actual=$tag_target" >&2
+                  return 1
+                fi
+                printf 'TAG_ONLY_MATCHING\n'
+                return 0
+                ;;
+              NOT_FOUND:FOUND)
+                echo 'Release exists while expected tag is absent; refusing ambiguous publication state' >&2
+                return 1
+                ;;
+              FOUND:FOUND)
+                if [[ "$tag_target" != "$expected_target" ]]; then
+                  echo "Existing tag target mismatch: expected=$expected_target actual=$tag_target" >&2
+                  return 1
+                fi
+                if [[ "$release_name" != "$expected_title" || "$draft" != 'false' || "$prerelease" != 'false' ]]; then
+                  echo 'Existing Release metadata does not match qualified handoff' >&2
+                  return 1
+                fi
+                if [[ "$notes_match" != 'true' ]]; then
+                  echo 'Existing Release notes do not match qualified handoff' >&2
+                  return 1
+                fi
+                case "$asset_state" in
+                  MISSING)
+                    printf 'RELEASE_MATCHING_ASSET_MISSING\n'
+                    return 0
+                    ;;
+                  MATCHING)
+                    printf 'PUBLISHED_MATCHING\n'
+                    return 0
+                    ;;
+                  MISMATCH)
+                    echo 'Existing expected-name asset content does not match qualified artifact' >&2
+                    return 1
+                    ;;
+                  AMBIGUOUS)
+                    echo 'Existing Release asset set is ambiguous or contains unexpected uploaded assets' >&2
+                    return 1
+                    ;;
+                  *)
+                    echo "Unknown asset state: $asset_state" >&2
+                    return 1
+                    ;;
+                esac
+                ;;
+              *)
+                echo "Unknown GitHub presence state: tag=$tag_presence release=$release_presence" >&2
+                return 1
+                ;;
+            esac
+          }
+          # END KSH_PUBLICATION_STATE_CLASSIFIER_FUNCTION
+
           tag='${{ steps.handoff.outputs.tag }}'
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1 || \
-             gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" >/dev/null 2>&1; then
-            echo "Release identity appeared during publication preparation: $tag" >&2
-            exit 1
+          title='${{ steps.handoff.outputs.title }}'
+          integrated_sha='${{ steps.handoff.outputs.integrated_sha }}'
+          notes='${{ steps.handoff.outputs.notes }}'
+          asset_name='${{ steps.handoff.outputs.artifact_name }}'
+          expected_sha='${{ steps.handoff.outputs.artifact_sha256 }}'
+          probe_dir="$RUNNER_TEMP/ksh-remote-state"
+          mkdir -p "$probe_dir"
+          tag_json="$probe_dir/tag.json"
+          release_json="$probe_dir/release.json"
+
+          tag_presence="$(github_api_get "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" "$tag_json")" || exit 1
+          release_presence="$(github_api_get "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" "$release_json")" || exit 1
+
+          tag_target=''
+          release_name=''
+          draft=''
+          prerelease=''
+          notes_match='false'
+          asset_state='MISSING'
+
+          if [[ "$tag_presence" == 'FOUND' ]]; then
+            tag_type="$(jq -er '.object.type' "$tag_json")"
+            tag_target="$(jq -er '.object.sha' "$tag_json")"
+            if [[ "$tag_type" != 'commit' ]]; then
+              echo "Expected lightweight commit tag; found object type: $tag_type" >&2
+              exit 1
+            fi
           fi
 
-      - name: Publish exact tag, Release and pre-qualified asset
+          if [[ "$release_presence" == 'FOUND' ]]; then
+            release_name="$(jq -er '.name // ""' "$release_json")"
+            draft="$(jq -er '.draft' "$release_json")"
+            prerelease="$(jq -er '.prerelease' "$release_json")"
+            published_notes="$(jq -r '.body // ""' "$release_json")"
+            expected_notes="$(cat "$notes")"
+            if [[ "$published_notes" == "$expected_notes" ]]; then
+              notes_match='true'
+            fi
+
+            expected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name == $name)] | length' "$release_json")"
+            unexpected_asset_count="$(jq -er --arg name "$asset_name" '[.assets[] | select(.name != $name)] | length' "$release_json")"
+
+            if (( unexpected_asset_count > 0 || expected_asset_count > 1 )); then
+              asset_state='AMBIGUOUS'
+            elif (( expected_asset_count == 0 )); then
+              asset_state='MISSING'
+            else
+              remote_digest="$(jq -r --arg name "$asset_name" '[.assets[] | select(.name == $name)][0].digest // ""' "$release_json")"
+              if [[ -n "$remote_digest" && "$remote_digest" != "sha256:${expected_sha}" ]]; then
+                asset_state='MISMATCH'
+              else
+                existing_dir="$probe_dir/existing-asset"
+                mkdir -p "$existing_dir"
+                if ! gh release download "$tag" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --pattern "$asset_name" \
+                  --dir "$existing_dir"; then
+                  echo 'Unable to download existing Release asset; publication state is indeterminate' >&2
+                  exit 1
+                fi
+                existing_asset="$existing_dir/$asset_name"
+                [[ -s "$existing_asset" ]] || { echo 'Existing Release asset download is missing/empty' >&2; exit 1; }
+                existing_sha="$(sha256sum "$existing_asset" | awk '{print $1}')"
+                if [[ "$existing_sha" == "$expected_sha" ]]; then
+                  asset_state='MATCHING'
+                else
+                  asset_state='MISMATCH'
+                fi
+              fi
+            fi
+          fi
+
+          state="$(classify_publication_state \
+            "$tag_presence" \
+            "$release_presence" \
+            "$tag_target" \
+            "$integrated_sha" \
+            "$release_name" \
+            "$title" \
+            "$draft" \
+            "$prerelease" \
+            "$notes_match" \
+            "$asset_state")" || exit 1
+
+          echo "Publication state: $state"
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+
+      - name: Publish or resume exact qualified state
         id: publish_release
         continue-on-error: true
         shell: bash
@@ -318,46 +505,70 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          integrated_sha='${{ steps.handoff.outputs.integrated_sha }}'
-          tag='${{ steps.handoff.outputs.tag }}'
-          title='${{ steps.handoff.outputs.title }}'
-          notes='${{ steps.handoff.outputs.notes }}'
-          artifact='${{ steps.handoff.outputs.artifact }}'
 
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
-            -f ref="refs/tags/${tag}" \
-            -f sha="$integrated_sha" >/dev/null
+          # BEGIN KSH_APPLY_PUBLICATION_STATE_FUNCTION
+          apply_publication_state() {
+            local state="$1"
+            local integrated_sha="$2"
+            local tag="$3"
+            local title="$4"
+            local notes="$5"
+            local artifact="$6"
 
-          gh release create "$tag" "$artifact" \
-            --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
-            --target "$integrated_sha" \
-            --title "$title" \
-            --notes-file "$notes"
+            case "$state" in
+              ABSENT)
+                gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+                  -f ref="refs/tags/${tag}" \
+                  -f sha="$integrated_sha" >/dev/null
+                gh release create "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --verify-tag \
+                  --target "$integrated_sha" \
+                  --title "$title" \
+                  --notes-file "$notes"
+                ;;
+              TAG_ONLY_MATCHING)
+                gh release create "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY" \
+                  --verify-tag \
+                  --target "$integrated_sha" \
+                  --title "$title" \
+                  --notes-file "$notes"
+                ;;
+              RELEASE_MATCHING_ASSET_MISSING)
+                gh release upload "$tag" "$artifact" \
+                  --repo "$GITHUB_REPOSITORY"
+                ;;
+              PUBLISHED_MATCHING)
+                echo 'Exact matching publication already exists; no mutation required.'
+                ;;
+              *)
+                echo "Unsupported publication state: $state" >&2
+                return 1
+                ;;
+            esac
+          }
+          # END KSH_APPLY_PUBLICATION_STATE_FUNCTION
 
-      - name: Report partial publication failure
+          apply_publication_state \
+            '${{ steps.remote_state.outputs.state }}' \
+            '${{ steps.handoff.outputs.integrated_sha }}' \
+            '${{ steps.handoff.outputs.tag }}' \
+            '${{ steps.handoff.outputs.title }}' \
+            '${{ steps.handoff.outputs.notes }}' \
+            '${{ steps.handoff.outputs.artifact }}'
+
+      - name: Report publication mutation failure
         if: steps.publish_release.outcome == 'failure'
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          set -euo pipefail
-          tag='${{ steps.handoff.outputs.tag }}'
-          tag_state='absent'
-          release_state='absent'
-          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" >/dev/null 2>&1; then
-            tag_state='present'
-          fi
-          if gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}" >/dev/null 2>&1; then
-            release_state='present'
-          fi
           {
-            echo '## KSH release publication failed'
+            echo '## KSH release publication mutation failed'
             echo
-            echo '- State: PARTIALLY_PUBLISHED or FAILED'
-            echo "- Tag: $tag_state"
-            echo "- Release: $release_state"
-            echo '- No tag/release rollback or history rewrite was attempted.'
+            echo '- Starting qualified remote state: `${{ steps.remote_state.outputs.state }}`'
+            echo '- Remote post-failure state was not guessed from a failed API call.'
+            echo '- No tag move, asset overwrite, rollback or history rewrite was attempted.'
+            echo '- Re-run the canonical workflow; it will re-classify the remote state before any further mutation.'
           } >> "$GITHUB_STEP_SUMMARY"
           exit 1
 
@@ -428,6 +639,7 @@ jobs:
             echo '## KSH Kanoon Articles release'
             echo
             echo '- State: **PUBLISHED_AND_VERIFIED**'
+            echo '- Recovery input state: `${{ steps.remote_state.outputs.state }}`'
             echo '- Release: ${{ steps.verify_published.outputs.release_url }}'
             echo '- Tag: `${{ steps.handoff.outputs.tag }}`'
             echo '- Target: `${{ steps.handoff.outputs.integrated_sha }}`'
