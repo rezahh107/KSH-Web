@@ -62,9 +62,11 @@ for forbidden in \
   'verify-foundation.sh' \
   'composer ' \
   'build-ksh-kanoon-articles.sh' \
-  'verify-ksh-kanoon-articles-zip.sh'; do
+  'verify-ksh-kanoon-articles-zip.sh' \
+  ' php ' \
+  'php -l'; do
   if grep -Fq "$forbidden" "$publish_job"; then
-    fail "write-authority publish job executes forbidden repository/dependency tooling: $forbidden"
+    fail "write-authority publish job executes forbidden repository/dependency/PHP tooling: $forbidden"
   fi
 done
 if grep -Fq 'if: always()' "$publish_job"; then
