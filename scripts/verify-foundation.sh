@@ -27,6 +27,7 @@ required_files=(
   "scripts/release/build-ksh-kanoon-articles.sh"
   "scripts/release/verify-ksh-kanoon-articles-zip.sh"
   "scripts/release/verify-ksh-kanoon-articles-release-notes.sh"
+  "scripts/release/test-ksh-kanoon-articles-determinism.sh"
   "scripts/release/test-ksh-kanoon-articles-release.sh"
   "scripts/release/test-ksh-kanoon-articles-starter-recovery.sh"
   ".github/workflows/publish-ksh-kanoon-articles.yml"
@@ -97,6 +98,7 @@ php scripts/validate-elementor-homepage.php
 
 echo "ELEMENTOR_HOMEPAGE_VERIFY_PASS"
 
+bash scripts/release/test-ksh-kanoon-articles-determinism.sh
 bash scripts/release/test-ksh-kanoon-articles-release.sh
 bash scripts/release/test-ksh-kanoon-articles-starter-recovery.sh
 
