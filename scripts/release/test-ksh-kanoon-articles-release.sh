@@ -19,6 +19,14 @@ expect_failure() {
   fi
 }
 
+# workflow_dispatch input is untrusted shell data. It must cross the expression
+# boundary through an environment variable and only then be syntax-validated.
+workflow="$repo_root/.github/workflows/publish-ksh-kanoon-articles.yml"
+input_refs="$(grep -Fc '${{ inputs.pr_number }}' "$workflow")"
+[[ "$input_refs" == '1' ]] || fail 'PR number input must have exactly one expression reference'
+grep -Fq 'PR_NUMBER: ${{ inputs.pr_number }}' "$workflow" || fail 'PR number input is not passed through env'
+grep -Fq 'pr_number="$PR_NUMBER"' "$workflow" || fail 'PR number shell value is not read from env'
+
 version="$($script_dir/ksh-kanoon-articles-version.sh)"
 [[ -n "$version" ]] || fail 'version resolver returned empty version'
 
