@@ -28,16 +28,21 @@ GitHub authentication is step-scoped to the API/CLI operations that require it r
 
 ## Safe re-run after a partial publication
 
-Re-run the same **Publish KSH Kanoon Articles** workflow from `main` with the same merged release-intended PR number. The workflow does not treat every existing identity as a conflict; it admits only exact matching recovery states:
+Re-run the same **Publish KSH Kanoon Articles** workflow from `main` with the same merged release-intended PR number. The workflow admits only exact matching recovery states:
 
 - `ABSENT` — create tag + Release + asset normally.
 - `TAG_ONLY_MATCHING` — keep the existing exact tag and create only the Release + asset.
 - `RELEASE_MATCHING_ASSET_MISSING` — keep the existing exact tag/Release and upload only the missing exact asset.
+- `RELEASE_MATCHING_STARTER_ASSET` — the exact tag/Release/notes match, exactly one expected-name asset exists, no unexpected assets exist, and GitHub reports that asset as `state=starter` with `size=0`. Delete only that exact starter asset by its GitHub asset ID, require deletion success, then upload the exact pre-qualified artifact.
 - `PUBLISHED_MATCHING` — perform no mutation and re-run last-mile verification to converge successfully.
 
-Wrong tag targets, unexpected Release metadata, release-note mismatch, ambiguous/unexpected uploaded assets, or an expected-name asset with mismatching digest/content fail closed. GitHub API `404` is the only absence signal; authentication, transport, rate-limit or server failures are treated as indeterminate and do not authorize mutation.
+GitHub documents one narrow failed-upload condition where an upstream Release Asset upload failure can leave an empty asset with `state=starter`; GitHub explicitly states that this starter asset can be safely deleted. This is the only existing-asset deletion the canonical workflow permits.
 
-Never move or rewrite an existing tag. Never use asset clobber/overwrite behavior. Do not manually repair a partial state if the canonical workflow can safely resume it.
+A genuine uploaded expected-name asset with wrong digest/content is **not** recoverable: it fails closed and is never deleted or overwritten. The same fail-closed rule applies to wrong tag targets, unexpected Release metadata, release-note mismatch, unknown asset states, multiple expected-name assets, or any unexpected additional asset.
+
+GitHub API `404` is the only absence signal. Authentication, transport, rate-limit or server failures are treated as indeterminate and do not authorize mutation. If starter deletion fails or is uncertain, upload is not attempted. If deletion succeeds but upload then fails, do not manually patch the Release; simply re-run the canonical workflow so it can re-classify the remote state.
+
+Never move or rewrite an existing tag. Never use generic asset clobber/overwrite behavior. Never delete a normal uploaded asset. Do not manually repair a partial state if the canonical workflow can safely resume it.
 
 Do not manually calculate the tag, build a production ZIP, move an existing tag, overwrite a published asset or substitute GitHub's repository source ZIP for the plugin release asset.
 
