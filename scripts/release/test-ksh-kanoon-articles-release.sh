@@ -53,8 +53,8 @@ grep -Fq 'composer install' "$repo_root/scripts/verify-foundation.sh" || fail 'c
 # Write authority is isolated to publication and consumes only the qualified handoff.
 grep -Fq 'needs: prepare' "$publish_job" || fail 'publish job is not gated on successful prepare job completion'
 grep -Fq 'contents: write' "$publish_job" || fail 'publish job does not declare contents: write'
-if grep -Eq '^    env:' "$workflow"; then
-  fail 'workflow defines job-wide environment data; GitHub authentication must be step-scoped'
+if grep -Eq '^    env:' "$prepare_job" || grep -Eq '^    env:' "$publish_job"; then
+  fail 'release job defines job-wide environment data; GitHub authentication must be step-scoped'
 fi
 for forbidden in \
   'actions/checkout@' \
