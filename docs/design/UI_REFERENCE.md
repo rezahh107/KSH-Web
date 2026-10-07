@@ -1,6 +1,28 @@
 # UI Reference Contract
 
-## Canonical visual asset
+## Authority layers
+
+The KSH visual authority is now layered rather than represented by one homepage image:
+
+1. Whole-site guidance authority: `KSH_NINE_PAGE_DESIGN_SYSTEM_v1.0.1_COMPLETE.zip` with `DESIGN_SYSTEM_STATUS = COMPLETE`.
+2. Current Page 05 implementation authority: `docs/design/PAGE05_PRODUCTION_REFERENCE.md`, registering `KSH_PAGE05_MASTER_REFERENCE_v1.1` and `KSH_PAGE05_HERO_REFERENCE_v1.0`.
+3. Historical homepage/article-composition evidence: `docs/design/assets/homepage-responsive-reference.webp`.
+
+A lower or older visual reference must not override a page-specific locked master or current explicit Owner instruction. Completion of a design artifact does not prove WordPress/Elementor/browser runtime behavior.
+
+## Current Page 05 reference
+
+Use `docs/design/PAGE05_PRODUCTION_REFERENCE.md` for Page 05 — Strategic Program / برنامه راهبردی.
+
+Its canonical desktop/mobile masters are visual implementation authority, but:
+
+`ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN`
+
+remains mandatory until native Elementor construction plus authentic browser/responsive/interaction qualification has actually run.
+
+The 390px master is the primary mobile visual reference, not a command to force identical geometry at every mobile width. Responsive implementation must remain usable at 320, 360, 375, 390, 412, and 414px and at representative 768–1024px intermediate widths.
+
+## Historical homepage visual asset
 
 `docs/design/assets/homepage-responsive-reference.webp`
 
@@ -9,11 +31,11 @@ Repository identity:
 - Git blob SHA: `4f821a2e0c3a03c897c28eefb50d8ac7312359ce`
 - Size: `19888` bytes
 
-The asset is a reduced, layout-focused WebP derivative of the current responsive concept that integrates the Kanoon article-list module into the existing page structure. Its purpose is fast visual grounding for humans and language/vision models; exact product copy comes from canonical project documents, not from rasterized text in the image.
+This is a reduced, layout-focused WebP derivative of the earlier responsive homepage concept that integrated the Kanoon article-list module. It remains useful for the historical homepage/article composition it was created to describe. It is **not** the current whole-site design-system package and is **not** Page 05 authority.
 
-## What the image is authoritative for
+## What the historical image is authoritative for
 
-Use it as design evidence for:
+Within its original homepage scope, use it as evidence for:
 
 - overall RTL composition;
 - desktop/tablet/mobile responsive intent;
@@ -27,20 +49,21 @@ Use it as design evidence for:
 
 ## What the image is NOT authoritative for
 
-Do not treat the rasterized/generated text inside the image as exact copy or factual content.
+Do not treat rasterized/generated text inside the image as exact copy or factual content. It may contain imperfect Persian text, sample article titles, placeholder contact details, or illustrative labels.
 
-The image may contain imperfect or generated Persian text, sample article titles, placeholder phone/contact details, or illustrative labels. Those must not override:
+It also does not override:
 
-1. current Owner instruction;
+1. current explicit Owner instruction;
 2. `docs/MOTHER_PROJECT.md`;
 3. accepted ADRs;
-4. actual approved copy/data.
+4. `docs/design/PAGE05_PRODUCTION_REFERENCE.md` for Page 05;
+5. actual approved copy/data.
 
-The image is also not a pixel-perfect CSS specification unless the Owner later freezes it as such.
+It is not a pixel-perfect CSS specification and must not be generalized into an implementation mechanism for all pages.
 
 ## Article-list module interpretation
 
-The concept shows the Kanoon article module integrated as a first-class KSH-Web section rather than embedding Kanoon's original UI.
+The historical concept shows the Kanoon article module integrated as a first-class KSH-Web section rather than embedding Kanoon's original UI.
 
 Current content contract:
 
@@ -50,24 +73,23 @@ Current content contract:
 - canonical click destination remains `kanoon.ir`;
 - no full article body or remote widget iframe.
 
-Responsive implementation may use columns, tabs, collapsible density, or another faithful adaptation as long as it preserves the information hierarchy and does not introduce a foreign embedded visual system.
+Responsive implementation may faithfully adapt density/layout while preserving hierarchy and avoiding a foreign embedded visual system.
 
 ## Guidance for language/vision models
 
-When using this asset:
+When using KSH visual authority:
 
-1. inspect the image before proposing UI changes;
-2. describe the observed structure separately from assumptions;
-3. preserve responsive intent, not accidental raster artifacts;
-4. use canonical project docs for exact product behavior and labels;
-5. if a requested change conflicts with the image, follow the higher authority and update this reference contract/artifact only when explicitly authorized.
+1. identify whether the task is whole-site guidance, Page 05, or historical homepage/article work;
+2. use the highest applicable page-specific/current authority;
+3. describe observed structure separately from assumptions;
+4. preserve responsive intent rather than accidental raster geometry;
+5. use canonical project docs for exact behavior/copy/destinations;
+6. never upgrade static design evidence into Elementor/browser/accessibility proof.
 
 ## Asset maintenance
 
-The design asset is integrity-checked by `scripts/verify-foundation.sh` against its Git blob identity.
+The historical homepage asset remains integrity-checked by `scripts/verify-foundation.sh` against its Git blob identity.
 
-If the design reference is intentionally replaced:
+The current large Page 05 masters/Hero binaries remain in the established Owner Drive authority store. Their exact identity/status is source-controlled in `docs/design/PAGE05_PRODUCTION_REFERENCE.md` and drift-checked by the canonical verifier. This deliberately avoids inventing a second binary-asset-management subsystem in the repository.
 
-- update the asset;
-- update its recorded blob identity here and in the verification script;
-- document the design-authority change in the relevant project/decision record.
+If a locked Page 05 asset is intentionally replaced, create a new versioned provenance record and update the repository identity contract only after explicit Owner approval.

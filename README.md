@@ -7,11 +7,22 @@ The repository contains the site-specific **KSH Kanoon Articles** plugin. It cov
 ## Start here
 
 1. [`docs/MOTHER_PROJECT.md`](docs/MOTHER_PROJECT.md) — canonical project charter, scope, locked decisions, boundaries, and current status.
-2. [`docs/SITE_INFORMATION_ARCHITECTURE.md`](docs/SITE_INFORMATION_ARCHITECTURE.md) — proposed Owner-review reference for page/destination structure, names, URLs, navigation, and indexing intent; only explicitly marked Owner locks are final.
-3. [`docs/design/UI_REFERENCE.md`](docs/design/UI_REFERENCE.md) — responsive UI reference and its authority limits.
-4. [`docs/decisions/ADR-001-kanoon-article-list-mirror.md`](docs/decisions/ADR-001-kanoon-article-list-mirror.md) — locked architecture for mirroring Kanoon article-list metadata.
-5. [`AGENTS.md`](AGENTS.md) — concise operational entrypoint for AI-assisted engineering.
-6. [`docs/REPOSITORY_FOUNDATION.md`](docs/REPOSITORY_FOUNDATION.md) — repository-foundation rationale and intentionally deferred work.
+2. [`docs/SITE_INFORMATION_ARCHITECTURE.md`](docs/SITE_INFORMATION_ARCHITECTURE.md) — proposed Owner-review reference for page/destination structure; only explicitly marked Owner locks are final.
+3. [`docs/design/PAGE05_PRODUCTION_REFERENCE.md`](docs/design/PAGE05_PRODUCTION_REFERENCE.md) — current locked Page 05 Master/Hero identities, Drive/repo provenance boundary, responsive/runtime qualification contract, and claim ceiling.
+4. [`docs/design/UI_REFERENCE.md`](docs/design/UI_REFERENCE.md) — shared/historical UI reference boundaries.
+5. [`docs/decisions/ADR-001-kanoon-article-list-mirror.md`](docs/decisions/ADR-001-kanoon-article-list-mirror.md) — locked architecture for mirroring Kanoon article-list metadata.
+6. [`AGENTS.md`](AGENTS.md) — concise operational entrypoint for AI-assisted engineering.
+7. [`docs/REPOSITORY_FOUNDATION.md`](docs/REPOSITORY_FOUNDATION.md) — repository-foundation rationale and intentionally deferred work.
+
+## Current project phase
+
+- `KSH_NINE_PAGE_DESIGN_SYSTEM_v1.0.1_COMPLETE.zip` is complete/locked.
+- `KSH_PAGE05_MASTER_REFERENCE_v1.1` is the current Owner-approved canonical Page 05 visual reference.
+- `KSH_PAGE05_HERO_REFERENCE_v1.0` is the canonical Hero asset family.
+- `PAGE_05_ELEMENTOR_PRODUCTION_REFERENCE` is the immediate milestone.
+- `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` until authentic native Elementor plus browser/responsive/interaction qualification occurs.
+- KSH Kanoon Articles v0.4.1 current-contract real-host qualification remains open but is deferred from immediate priority.
+- Design-system completion does not imply that Pages 01–04 or 06–09 are implemented.
 
 ## Kanoon article plugin
 
@@ -21,7 +32,7 @@ Plugin source:
 wp-content/plugins/ksh-kanoon-articles/
 ```
 
-Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.4.0**.
+Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.4.1**.
 
 The existing wp-admin surface under **Tools → آزمون اتصال مقاله‌های کانون** exposes three bounded actions:
 
@@ -114,9 +125,11 @@ Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle bounda
 
 ## Operational qualification workflow
 
+This workflow remains valid for the unresolved KSH Kanoon Articles v0.4.1 current-contract real-host qualification, but it is **deferred from the immediate Page 05 milestone**. Resume it only when article qualification returns to active priority.
+
 The historical v0.2.1 diagnostic established one successful real Cron-origin execution for the historical contract. The JSON download remains the preferred bounded support artifact because it is read-only and does not contact `kanoon.ir`.
 
-After this repaired v0.4.0 build is installed by the Owner on KSH:
+When the current v0.4.1 article qualification work is resumed on KSH:
 
 1. keep the existing LKG snapshots and `[ksh_kanoon_articles]` placement intact;
 2. run ordinary **Preview/Test Connection** and confirm the homepage `تازه‌ها` semantic list and Weekly Popular both succeed; Preview alone must leave the contract unqualified;

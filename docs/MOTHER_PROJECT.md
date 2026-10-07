@@ -42,33 +42,36 @@ Some content and exact page inventory may evolve during implementation. Do not i
 
 ## 3. Design direction
 
-The current responsive design reference is stored at:
+The KSH Nine-Page Guidance Design System is now the locked whole-site design authority:
+
+- canonical package: `KSH_NINE_PAGE_DESIGN_SYSTEM_v1.0.1_COMPLETE.zip`;
+- `DESIGN_SYSTEM_STATUS = COMPLETE`;
+- completion of the Design System does **not** mean Pages 01–09 are implemented in WordPress/Elementor.
+
+The immediate page-specific implementation authority is Page 05 — Strategic Program / برنامه راهبردی. Its repository contract is:
+
+`docs/design/PAGE05_PRODUCTION_REFERENCE.md`
+
+That document registers the current locked Page 05 Master v1.1, canonical Hero v1.0, official asset identities, responsive/runtime qualification requirements, and the boundary between source-controlled provenance and the authoritative large binary assets retained in the established Owner Drive authority store.
+
+The older repository asset:
 
 `docs/design/assets/homepage-responsive-reference.webp`
 
-Its interpretation contract is documented in:
+remains valid **historical homepage/article-composition evidence** within the limits documented by `docs/design/UI_REFERENCE.md`. It is not the current whole-site or Page 05 implementation master and must not override the Nine-Page Design System or Page 05-specific authority.
 
-`docs/design/UI_REFERENCE.md`
+### Current Page 05 authority
 
-### Visual intent currently visible in the approved/reference direction
+- `KSH_PAGE05_MASTER_REFERENCE_v1.1` — OWNER APPROVED / CANONICAL / LOCKED;
+- desktop master: `KSH_PAGE05_MASTER_DESKTOP_v1.1.png`, 1440 × 3515, SHA-256 `2b2a783fd98b68ec97867f7a686cfcc79993c7ee3e3bf60aff77a965f8b81597`;
+- mobile/responsive master: `KSH_PAGE05_MASTER_MOBILE_RESPONSIVE_v1.1.png`, 390 × 3904, SHA-256 `8877db443487d5d9e0f5a293c713e76a3397f5bda5c03f974174f612a6f8ab37`;
+- `KSH_PAGE05_HERO_REFERENCE_v1.0` — VERIFIED / CANONICAL;
+- `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` until authentic Elementor/browser qualification is actually executed;
+- immediate milestone: `PAGE_05_ELEMENTOR_PRODUCTION_REFERENCE`.
 
-- Persian RTL layout;
-- desktop, tablet, and mobile responsive behavior;
-- clean white/light surfaces with a dark navy foundation;
-- warm gold/orange accent for priority actions and section markers;
-- card-based service/navigation sections;
-- strong hierarchy with compact information density;
-- prominent hero area;
-- clear service/action cards;
-- structured instructional/help sections;
-- FAQ/important-notes/CTA/footer patterns;
-- the Kanoon article-list module integrated into the existing page rhythm rather than visually behaving as an embedded foreign widget.
+Page 05 v1.1 is bounded production hardening, not redesign authority. Preserve the approved content architecture, semantic section order, Hero concept, text hierarchy, Academic Journey grammar, Current Information concept, FAQ grammar, Related Guides grammar, KSH palette, typography direction, icon language, and official Kanoon logo authority.
 
-### Authority boundary
-
-The visual reference is authoritative for **composition, hierarchy, responsive intent, visual language, and relative placement** within the limits described in `UI_REFERENCE.md`.
-
-It is **not** authoritative for every generated Persian word, exact article title, exact phone number, URL, factual statement, or placeholder copy visible inside the image.
+Do not invent public copy, destinations, or permanent URLs merely to simplify implementation.
 
 ---
 
@@ -282,6 +285,12 @@ As implementation evolves, extend this same canonical verification path with app
 
 ### Confirmed / locked
 
+- KSH Nine-Page Guidance Design System v1.0.1 is `COMPLETE / LOCKED`;
+- Page 05 Master v1.1 is the current Owner-approved canonical implementation reference;
+- Page 05 Hero v1.0 is `VERIFIED / CANONICAL`;
+- `PAGE_05_ELEMENTOR_PRODUCTION_REFERENCE` is the immediate project milestone;
+- current KSH Kanoon Articles release family is v0.4.1; its current-contract real-host qualification remains a valid gap but is deferred from immediate priority;
+- Pages 01–04 and 06–09 are not upgraded to implemented/runtime-proven status merely because the Nine-Page Design System is complete;
 - repository identity: `KSH-Web`;
 - WordPress platform;
 - Persian RTL responsive direction;
@@ -336,6 +345,10 @@ As implementation evolves, extend this same canonical verification path with app
 
 ### Still NOT_PROVEN
 
+- `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` for Page 05 until native Elementor construction and authentic browser/runtime qualification are executed;
+- Page 05 URL/publication binding remains unproven unless an already-authoritative WordPress page/path is found in the runtime; repository IA proposals alone do not authorize a permanent public path;
+- Pages 01–04 and 06–09 remain not implemented/not runtime-qualified unless separately proven;
+- KSH Kanoon Articles v0.4.1 current-contract real-host qualification remains unresolved and deferred, not silently closed;
 - future Kanoon DOM/network stability;
 - real-host successful qualification of `kanoon-homepage-semantic-lists-v1` through the repaired v0.4.0 Owner action on KSH;
 - real-host writable Manual/Cron execution for the v0.4.0 contract after that qualification;
@@ -349,27 +362,23 @@ Repository tests may prove exercised deterministic behavior and admission enforc
 
 ## 12. Near-term implementation sequence
 
-The architecture has historical real-host Preview/Cron/rendering evidence, while the v0.4.0 acquisition contract requires its own bounded Owner qualification after merge/install before writable refresh is admitted.
+The KSH Nine-Page Guidance Design System v1.0.1 is complete and locked. The active immediate milestone is now:
 
-After the v0.4.0 refinement PR is merged, the safest real-host validation is:
+`PAGE_05_ELEMENTOR_PRODUCTION_REFERENCE`
 
-1. install/update plugin v0.4.0 through the Owner's normal WordPress path;
-2. keep the existing LKG snapshots and `[ksh_kanoon_articles]` placement in place;
-3. run the read-only Preview and verify Latest resolves the homepage `تازه‌ها` semantic list and Weekly Popular still resolves independently; Preview alone must leave the current contract unqualified;
-4. use the protected **تأیید دریافت مقاله‌های کانون** Owner action and require successful persisted qualification for `kanoon-homepage-semantic-lists-v1`;
-5. only after step 4 succeeds, confirm the daily event is admitted and perform the bounded Manual Refresh; verify both local snapshots/attempt statuses remain coherent;
-6. load the real page and verify visitor rendering does not trigger acquisition;
-7. confirm each public list displays at most 15 links while diagnostic/local counts may legitimately be greater;
-8. capture representative desktop (~1440 px) and mobile (~390 px) widths;
-9. confirm desktop panels retain natural heights, mobile stacks to one column, titles remain readable, and there is no horizontal scrolling;
-10. with `rezahh107/Vazir` frontend typography enabled, confirm article text resolves to the site-delivered `Vazirmatn` family; disablement/absence must not break module readability/function;
-11. download the diagnostic JSON again and verify full stored snapshot metadata, Cron state, and observability remain intact.
+Execution order:
 
-Until the exact current-contract qualification in step 4 succeeds on KSH, Manual/Cron writable acquisition remains intentionally blocked and real-host v0.4.0 qualification remains `NOT_PROVEN`.
+1. synchronize repository authority with the locked Nine-Page/Page 05 design state without rewriting historical article/homepage facts;
+2. inspect the authentic KSH WordPress/Elementor runtime before page mutation, including the actual Page 05 page/draft situation, global styles, `Header01`, typography delivery, breakpoints, and reusable native Elementor primitives;
+3. construct Page 05 natively in Elementor from `KSH_PAGE05_MASTER_REFERENCE_v1.1` using the canonical Hero/assets and bounded CSS only where Elementor controls are insufficient;
+4. preserve RTL semantic reading order and content-driven/intrinsic height; do not trace the screenshot with brittle absolute coordinates;
+5. qualify 1440 desktop, representative 768–1024 intermediate widths, and 320/360/375/390/412/414 mobile widths, including Hero behavior, SVG/icon rendering, resolved font family, FAQ/interactive states, keyboard focus/traversal, touch targets, text-spacing resilience, and horizontal overflow;
+6. preserve global `Header01`, Plato routes/ownership, `/reg/`, and `page_on_front`; do not create a permanent Page 05 URL unless runtime authority already establishes one;
+7. keep `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` and the milestone non-PASS until the authentic runtime evidence actually supports those claims.
 
-The diagnostic download remains the preferred bounded support artifact and must stay read-only. Future source compatibility and future Cron runs remain operational evidence questions, not assumptions.
+The unresolved KSH Kanoon Articles v0.4.1 current-contract real-host qualification remains valid project work, but it is explicitly deferred from immediate priority. Do not reopen or modify its architecture as a side effect of Page 05 unless Page 05 exposes a real regression caused by that module.
 
-For the broader site, implementation should continue to follow the accepted visual structure and actual WordPress environment rather than creating speculative infrastructure.
+Repository/static/CI checks may prove authority-document consistency and existing deterministic contracts. They cannot by themselves upgrade Page 05 to runtime/browser/accessibility PASS.
 
 ---
 
