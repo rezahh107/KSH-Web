@@ -155,7 +155,7 @@ done
 # Genuine historical v0.4.0 evidence/implementation descriptions remain admitted.
 require_contains "docs/MOTHER_PROJECT.md" '- v0.4.0 Latest parser binding to the homepage `تازه‌ها` semantic target'
 require_contains "README.md" 'it does **not** qualify the v0.4.0 semantic change that now binds Latest to the homepage `تازه‌ها` list'
-require_contains "README.md" 'the repaired v0.4.0 diagnostic classifies the surviving summary as `legacy_unknown_contract` evidence'
+require_contains "README.md" 'the repaired v0.4.0 diagnostic classifies the surviving summary as `legacy_unknown_contract`;'
 require_contains "AGENTS.md" 'the v0.4.0 refinement changes Latest acquisition to the homepage semantic tab/target'
 
 echo "CURRENT_AUTHORITY_VERIFY_PASS"
