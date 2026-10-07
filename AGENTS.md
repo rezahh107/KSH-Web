@@ -86,7 +86,7 @@ Important boundaries:
 - the 15-item public limit is presentation-only and must not truncate otherwise valid persisted list data;
 - repository/stub tests prove exercised renderer, attribution, qualification admission, persistence, scheduling, and export logic but do not qualify the real KSH host;
 - historical Preview/Cron observations qualify only the exact runtime/source behavior they executed;
-- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; v0.4.0 real-host acquisition-contract qualification remains `NOT_PROVEN` until the Owner executes the exact repaired build on KSH and the current-contract qualification action succeeds.
+- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; current v0.4.1 real-host acquisition-contract qualification remains `NOT_PROVEN` until the Owner executes the current v0.4.1 build on KSH and the `kanoon-homepage-semantic-lists-v1` qualification action succeeds.
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 

@@ -140,9 +140,9 @@ Observed at that historical execution:
 
 That evidence qualifies only the exact historical source/parser/runtime path that ran then. It does **not** qualify the later Owner-approved semantic change that moves Latest to the homepage `تازه‌ها` tab/list, and it does not prove future DOM/network stability.
 
-After merged PR #4, the Owner also observed a v0.2.1 Cron-origin successful acquisition/persistence/diagnostic run. That remains historical runtime evidence for the architecture, not proof of the new homepage-Latest DOM binding. Because the historical summary predates acquisition-contract provenance, a current v0.4.0 diagnostic must retain it as `legacy_unknown_contract` evidence rather than treating it as current-contract Cron execution.
+After merged PR #4, the Owner also observed a v0.2.1 Cron-origin successful acquisition/persistence/diagnostic run. That remains historical runtime evidence for the architecture, not proof of the new homepage-Latest DOM binding. Because the historical summary predates acquisition-contract provenance, the current v0.4.1 diagnostic must retain it as `legacy_unknown_contract` evidence rather than treating it as current-contract Cron execution.
 
-Therefore the v0.4.0 homepage semantic contract remains **NOT_PROVEN on the real KSH host** until the Owner runs the repaired explicit qualification action successfully for `kanoon-homepage-semantic-lists-v1` on that host.
+Therefore the current v0.4.1 release's homepage semantic contract remains **NOT_PROVEN on the real KSH host** until the Owner runs the explicit qualification action successfully for `kanoon-homepage-semantic-lists-v1` on that host.
 
 ## Failure model
 

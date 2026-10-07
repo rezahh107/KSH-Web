@@ -166,7 +166,7 @@ A separate simulation laboratory is **not required as a prerequisite** for this 
 
 The implementation requires a **read-only Preview/Test Connection qualification path on the real target WordPress host before writes/scheduling are enabled**. This is enforced as runtime admission, not merely as documented sequencing.
 
-The exact acquisition/parser contract has an explicit identity independent from the plugin version. The current v0.4.0 identity is:
+The exact acquisition/parser contract has an explicit identity independent from the plugin version. The current KSH Kanoon Articles release is v0.4.1. Its acquisition/parser contract identity remains:
 
 ```text
 kanoon-homepage-semantic-lists-v1
@@ -196,7 +196,7 @@ After merged PR #4, the Owner installed plugin v0.2.1 and downloaded the real-ho
 
 The Owner subsequently installed v0.3.0, placed `[ksh_kanoon_articles]` on a real KSH page, and supplied desktop/mobile captures. Those captures showed both lists rendering, the intended two-column desktop composition, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. v0.3.1 removed repeated public Latest date lines and equal-height Grid stretching while preserving the underlying stored metadata and local-only architecture.
 
-These runtime observations do not guarantee future Cron firing, future Kanoon DOM/network stability, or the new homepage-Latest semantic binding. Real-host qualification of `kanoon-homepage-semantic-lists-v1` remains **NOT_PROVEN** until the Owner executes the repaired v0.4.0 qualification action successfully on KSH.
+These runtime observations do not guarantee future Cron firing, future Kanoon DOM/network stability, or the new homepage-Latest semantic binding. Real-host qualification of `kanoon-homepage-semantic-lists-v1` remains **NOT_PROVEN** until the Owner executes the current v0.4.1 qualification action successfully on KSH.
 
 ---
 
@@ -350,10 +350,10 @@ As implementation evolves, extend this same canonical verification path with app
 - Pages 01–04 and 06–09 remain not implemented/not runtime-qualified unless separately proven;
 - KSH Kanoon Articles v0.4.1 current-contract real-host qualification remains unresolved and deferred, not silently closed;
 - future Kanoon DOM/network stability;
-- real-host successful qualification of `kanoon-homepage-semantic-lists-v1` through the repaired v0.4.0 Owner action on KSH;
-- real-host writable Manual/Cron execution for the v0.4.0 contract after that qualification;
+- real-host successful qualification of `kanoon-homepage-semantic-lists-v1` through the current v0.4.1 Owner action on KSH;
+- real-host writable Manual/Cron execution for the current v0.4.1 release after that qualification;
 - every future WP-Cron execution after the historical observed v0.2.1 run;
-- real-host/browser visual acceptance of v0.4.0 at representative desktop/mobile widths, including actual `Vazirmatn` resolution when the companion typography plugin is active;
+- real-host/browser visual acceptance of the current v0.4.1 release at representative desktop/mobile widths, including actual `Vazirmatn` resolution when the companion typography plugin is active;
 - production deployment procedure beyond the Owner's normal plugin installation/content-placement path.
 
 Repository tests may prove exercised deterministic behavior and admission enforcement, but they must not be used to upgrade these remaining runtime/browser facts.

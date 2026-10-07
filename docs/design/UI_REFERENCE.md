@@ -90,6 +90,6 @@ When using KSH visual authority:
 
 The historical homepage asset remains integrity-checked by `scripts/verify-foundation.sh` against its Git blob identity.
 
-The current large Page 05 masters/Hero binaries remain in the established Owner Drive authority store. Their exact identity/status is source-controlled in `docs/design/PAGE05_PRODUCTION_REFERENCE.md` and drift-checked by the canonical verifier. This deliberately avoids inventing a second binary-asset-management subsystem in the repository.
+The current large Page 05 masters/Hero binaries remain in the established Owner Drive authority store. Their declared identity/status is source-controlled in `docs/design/PAGE05_PRODUCTION_REFERENCE.md` and checked for repository-side conformance by the canonical verifier; repository verification does not download or re-hash the Drive binary bytes. This deliberately avoids inventing a second binary-asset-management subsystem in the repository.
 
 If a locked Page 05 asset is intentionally replaced, create a new versioned provenance record and update the repository identity contract only after explicit Owner approval.

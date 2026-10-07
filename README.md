@@ -96,7 +96,7 @@ This proves the observed chain `WP-Cron → acquisition → parser/validation �
 
 The Owner also installed v0.3.0 and rendered `[ksh_kanoon_articles]` on the real KSH site. Desktop and mobile captures showed both lists rendering, the intended two-column desktop arrangement, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. v0.3.1 subsequently removed public per-item date metadata and default Grid equal-height stretching while preserving stored metadata.
 
-The exact v0.4.0 contract `kanoon-homepage-semantic-lists-v1` remains **NOT_PROVEN on the real KSH host** until the Owner installs the repaired build and the explicit current-contract qualification action succeeds there. Repository tests and GitHub Actions must not be reported as that real-host qualification. Current-contract Manual/Cron execution also remains unobserved until a persisted execution summary carrying that exact contract identity is produced on the real host.
+The exact current acquisition contract `kanoon-homepage-semantic-lists-v1`, as shipped by KSH Kanoon Articles v0.4.1, remains **NOT_PROVEN on the real KSH host** until the Owner installs the current v0.4.1 build and the explicit current-contract qualification action succeeds there. Repository tests and GitHub Actions must not be reported as that real-host qualification. Current-contract Manual/Cron execution also remains unobserved until a persisted execution summary carrying that exact contract identity is produced on the real host.
 
 ## Development verification
 
@@ -121,7 +121,7 @@ composer cs
 composer test
 ```
 
-Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. Current coverage proves the homepage Latest semantic target, exclusion of unrelated/archive/foreign/malformed candidates, fail-closed semantic ambiguity, independent Latest/Weekly outcomes, preservation of complete source ordering in storage, the 15-per-list public cap, absence of public `date_context`, last-known-good preservation, current-contract qualification admission, stale scheduled-event blocking, failed qualification non-admission, Manual/Cron run-summary independence, contract-bound Manual/Cron and per-list-attempt provenance, legacy/stale/current evidence classification, schedule-vs-execution truthfulness, cross-contract correlation/incomplete-observability states, diagnostic privacy exclusions, degraded admin behavior, read-only diagnostics/export, local-only frontend rendering, output escaping, shortcode compatibility, and scoped responsive/font-inheritance CSS contracts. They prove only the exercised deterministic behavior; they do not qualify the real KSH host or guarantee future Cron firing, future Kanoon HTML compatibility, or authentic real-page visual acceptance of v0.4.0.
+Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. Current coverage proves the homepage Latest semantic target, exclusion of unrelated/archive/foreign/malformed candidates, fail-closed semantic ambiguity, independent Latest/Weekly outcomes, preservation of complete source ordering in storage, the 15-per-list public cap, absence of public `date_context`, last-known-good preservation, current-contract qualification admission, stale scheduled-event blocking, failed qualification non-admission, Manual/Cron run-summary independence, contract-bound Manual/Cron and per-list-attempt provenance, legacy/stale/current evidence classification, schedule-vs-execution truthfulness, cross-contract correlation/incomplete-observability states, diagnostic privacy exclusions, degraded admin behavior, read-only diagnostics/export, local-only frontend rendering, output escaping, shortcode compatibility, and scoped responsive/font-inheritance CSS contracts. They prove only the exercised deterministic behavior; they do not qualify the real KSH host or guarantee future Cron firing, future Kanoon HTML compatibility, or authentic real-page visual acceptance of the current v0.4.1 release.
 
 ## Operational qualification workflow
 
@@ -141,7 +141,7 @@ When the current v0.4.1 article qualification work is resumed on KSH:
 8. verify desktop remains two-column with natural panel heights and mobile remains one-column with no horizontal overflow;
 9. download the diagnostic JSON and verify the current acquisition contract id, qualification status, Manual/Cron evidence provenance, scheduler state, and full local snapshot facts without public-only truncation.
 
-Until step 3 succeeds on the real KSH host, Manual/Cron writable acquisition for the v0.4.0 contract is intentionally blocked and real-host qualification remains `NOT_PROVEN`. Until a real Manual/Cron execution then persists evidence carrying the exact current contract id, current-contract operational execution evidence also remains `NOT_PROVEN`.
+Until step 3 succeeds on the real KSH host, Manual/Cron writable acquisition for the current v0.4.1 release's `kanoon-homepage-semantic-lists-v1` contract is intentionally blocked and real-host qualification remains `NOT_PROVEN`. Until a real Manual/Cron execution then persists evidence carrying the exact current contract id, current-contract operational execution evidence also remains `NOT_PROVEN`.
 
 ## Product direction
 

@@ -88,7 +88,7 @@ The authoritative large Page 05 visual binaries are retained in the established 
 - `KSH_PAGE05_MASTER_REFERENCE_v1.1/`
 - `KSH_PAGE05_HERO_REFERENCE_v1.0/`
 
-The repository intentionally stores this identity/provenance contract rather than duplicating those multi-megabyte canonical binaries into a new repo asset-management mechanism. The names, dimensions, hashes, authority state, responsive contract, and runtime claim ceiling are source-controlled here and mechanically drift-checked.
+The repository intentionally stores this identity/provenance contract rather than duplicating those multi-megabyte canonical binaries into a new repo asset-management mechanism. The names, dimensions, hashes, authority state, responsive contract, and runtime claim ceiling are source-controlled here and mechanically checked for repository-side conformance. Repository verification does not download or re-hash the Google Drive binary bytes.
 
 The older small repository-owned homepage WebP remains separately integrity-checked for its historical scope. It is not a substitute for the Page 05 binaries.
 
