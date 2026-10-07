@@ -7,11 +7,22 @@ The repository contains the site-specific **KSH Kanoon Articles** plugin. It cov
 ## Start here
 
 1. [`docs/MOTHER_PROJECT.md`](docs/MOTHER_PROJECT.md) — canonical project charter, scope, locked decisions, boundaries, and current status.
-2. [`docs/SITE_INFORMATION_ARCHITECTURE.md`](docs/SITE_INFORMATION_ARCHITECTURE.md) — proposed Owner-review reference for page/destination structure, names, URLs, navigation, and indexing intent; only explicitly marked Owner locks are final.
-3. [`docs/design/UI_REFERENCE.md`](docs/design/UI_REFERENCE.md) — responsive UI reference and its authority limits.
-4. [`docs/decisions/ADR-001-kanoon-article-list-mirror.md`](docs/decisions/ADR-001-kanoon-article-list-mirror.md) — locked architecture for mirroring Kanoon article-list metadata.
-5. [`AGENTS.md`](AGENTS.md) — concise operational entrypoint for AI-assisted engineering.
-6. [`docs/REPOSITORY_FOUNDATION.md`](docs/REPOSITORY_FOUNDATION.md) — repository-foundation rationale and intentionally deferred work.
+2. [`docs/SITE_INFORMATION_ARCHITECTURE.md`](docs/SITE_INFORMATION_ARCHITECTURE.md) — proposed Owner-review reference for page/destination structure; only explicitly marked Owner locks are final.
+3. [`docs/design/PAGE05_PRODUCTION_REFERENCE.md`](docs/design/PAGE05_PRODUCTION_REFERENCE.md) — current locked Page 05 Master/Hero identities, Drive/repo provenance boundary, responsive/runtime qualification contract, and claim ceiling.
+4. [`docs/design/UI_REFERENCE.md`](docs/design/UI_REFERENCE.md) — shared/historical UI reference boundaries.
+5. [`docs/decisions/ADR-001-kanoon-article-list-mirror.md`](docs/decisions/ADR-001-kanoon-article-list-mirror.md) — locked architecture for mirroring Kanoon article-list metadata.
+6. [`AGENTS.md`](AGENTS.md) — concise operational entrypoint for AI-assisted engineering.
+7. [`docs/REPOSITORY_FOUNDATION.md`](docs/REPOSITORY_FOUNDATION.md) — repository-foundation rationale and intentionally deferred work.
+
+## Current project phase
+
+- `KSH_NINE_PAGE_DESIGN_SYSTEM_v1.0.1_COMPLETE.zip` is complete/locked.
+- `KSH_PAGE05_MASTER_REFERENCE_v1.1` is the current Owner-approved canonical Page 05 visual reference.
+- `KSH_PAGE05_HERO_REFERENCE_v1.0` is the canonical Hero asset family.
+- `PAGE_05_ELEMENTOR_PRODUCTION_REFERENCE` is the immediate milestone.
+- `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` until authentic native Elementor plus browser/responsive/interaction qualification occurs.
+- KSH Kanoon Articles v0.4.1 current-contract real-host qualification remains open but is deferred from immediate priority.
+- Design-system completion does not imply that Pages 01–04 or 06–09 are implemented.
 
 ## Kanoon article plugin
 
@@ -21,7 +32,7 @@ Plugin source:
 wp-content/plugins/ksh-kanoon-articles/
 ```
 
-Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.4.0**.
+Plugin identity: **KSH Kanoon Articles** (`ksh-kanoon-articles`). Current development version: **0.4.1**.
 
 The existing wp-admin surface under **Tools → آزمون اتصال مقاله‌های کانون** exposes three bounded actions:
 
@@ -85,7 +96,7 @@ This proves the observed chain `WP-Cron → acquisition → parser/validation �
 
 The Owner also installed v0.3.0 and rendered `[ksh_kanoon_articles]` on the real KSH site. Desktop and mobile captures showed both lists rendering, the intended two-column desktop arrangement, one-column mobile stacking, and no obvious horizontal overflow in the provided mobile capture. v0.3.1 subsequently removed public per-item date metadata and default Grid equal-height stretching while preserving stored metadata.
 
-The exact v0.4.0 contract `kanoon-homepage-semantic-lists-v1` remains **NOT_PROVEN on the real KSH host** until the Owner installs the repaired build and the explicit current-contract qualification action succeeds there. Repository tests and GitHub Actions must not be reported as that real-host qualification. Current-contract Manual/Cron execution also remains unobserved until a persisted execution summary carrying that exact contract identity is produced on the real host.
+The exact current acquisition contract `kanoon-homepage-semantic-lists-v1`, as shipped by KSH Kanoon Articles v0.4.1, remains **NOT_PROVEN on the real KSH host** until the Owner installs the current v0.4.1 build and the explicit current-contract qualification action succeeds there. Repository tests and GitHub Actions must not be reported as that real-host qualification. Current-contract Manual/Cron execution also remains unobserved until a persisted execution summary carrying that exact contract identity is produced on the real host.
 
 ## Development verification
 
@@ -110,13 +121,15 @@ composer cs
 composer test
 ```
 
-Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. Current coverage proves the homepage Latest semantic target, exclusion of unrelated/archive/foreign/malformed candidates, fail-closed semantic ambiguity, independent Latest/Weekly outcomes, preservation of complete source ordering in storage, the 15-per-list public cap, absence of public `date_context`, last-known-good preservation, current-contract qualification admission, stale scheduled-event blocking, failed qualification non-admission, Manual/Cron run-summary independence, contract-bound Manual/Cron and per-list-attempt provenance, legacy/stale/current evidence classification, schedule-vs-execution truthfulness, cross-contract correlation/incomplete-observability states, diagnostic privacy exclusions, degraded admin behavior, read-only diagnostics/export, local-only frontend rendering, output escaping, shortcode compatibility, and scoped responsive/font-inheritance CSS contracts. They prove only the exercised deterministic behavior; they do not qualify the real KSH host or guarantee future Cron firing, future Kanoon HTML compatibility, or authentic real-page visual acceptance of v0.4.0.
+Repository tests use bounded stubs for Options/WP-Cron/frontend lifecycle boundaries. Current coverage proves the homepage Latest semantic target, exclusion of unrelated/archive/foreign/malformed candidates, fail-closed semantic ambiguity, independent Latest/Weekly outcomes, preservation of complete source ordering in storage, the 15-per-list public cap, absence of public `date_context`, last-known-good preservation, current-contract qualification admission, stale scheduled-event blocking, failed qualification non-admission, Manual/Cron run-summary independence, contract-bound Manual/Cron and per-list-attempt provenance, legacy/stale/current evidence classification, schedule-vs-execution truthfulness, cross-contract correlation/incomplete-observability states, diagnostic privacy exclusions, degraded admin behavior, read-only diagnostics/export, local-only frontend rendering, output escaping, shortcode compatibility, and scoped responsive/font-inheritance CSS contracts. They prove only the exercised deterministic behavior; they do not qualify the real KSH host or guarantee future Cron firing, future Kanoon HTML compatibility, or authentic real-page visual acceptance of the current v0.4.1 release.
 
 ## Operational qualification workflow
 
+This workflow remains valid for the unresolved KSH Kanoon Articles v0.4.1 current-contract real-host qualification, but it is **deferred from the immediate Page 05 milestone**. Resume it only when article qualification returns to active priority.
+
 The historical v0.2.1 diagnostic established one successful real Cron-origin execution for the historical contract. The JSON download remains the preferred bounded support artifact because it is read-only and does not contact `kanoon.ir`.
 
-After this repaired v0.4.0 build is installed by the Owner on KSH:
+When the current v0.4.1 article qualification work is resumed on KSH:
 
 1. keep the existing LKG snapshots and `[ksh_kanoon_articles]` placement intact;
 2. run ordinary **Preview/Test Connection** and confirm the homepage `تازه‌ها` semantic list and Weekly Popular both succeed; Preview alone must leave the contract unqualified;
@@ -128,7 +141,7 @@ After this repaired v0.4.0 build is installed by the Owner on KSH:
 8. verify desktop remains two-column with natural panel heights and mobile remains one-column with no horizontal overflow;
 9. download the diagnostic JSON and verify the current acquisition contract id, qualification status, Manual/Cron evidence provenance, scheduler state, and full local snapshot facts without public-only truncation.
 
-Until step 3 succeeds on the real KSH host, Manual/Cron writable acquisition for the v0.4.0 contract is intentionally blocked and real-host qualification remains `NOT_PROVEN`. Until a real Manual/Cron execution then persists evidence carrying the exact current contract id, current-contract operational execution evidence also remains `NOT_PROVEN`.
+Until step 3 succeeds on the real KSH host, Manual/Cron writable acquisition for the current v0.4.1 release's `kanoon-homepage-semantic-lists-v1` contract is intentionally blocked and real-host qualification remains `NOT_PROVEN`. Until a real Manual/Cron execution then persists evidence carrying the exact current contract id, current-contract operational execution evidence also remains `NOT_PROVEN`.
 
 ## Product direction
 

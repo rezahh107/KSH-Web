@@ -15,6 +15,7 @@ required_files=(
   "docs/MOTHER_PROJECT.md"
   "docs/REPOSITORY_FOUNDATION.md"
   "docs/design/UI_REFERENCE.md"
+  "docs/design/PAGE05_PRODUCTION_REFERENCE.md"
   "docs/design/assets/homepage-responsive-reference.webp"
   "docs/decisions/ADR-001-kanoon-article-list-mirror.md"
   "docs/decisions/ADR-002-ksh-kanoon-articles-release-system.md"
@@ -23,6 +24,7 @@ required_files=(
   "elementor/homepage/README.md"
   "elementor/homepage/ksh-public-homepage-body-v1.json"
   "scripts/validate-elementor-homepage.php"
+  "scripts/verify-current-authority.sh"
   "scripts/release/ksh-kanoon-articles-version.sh"
   "scripts/release/build-ksh-kanoon-articles.sh"
   "scripts/release/verify-ksh-kanoon-articles-zip.sh"
@@ -33,6 +35,7 @@ required_files=(
   ".github/workflows/publish-ksh-kanoon-articles.yml"
   "wp-content/plugins/ksh-kanoon-articles/ksh-kanoon-articles.php"
   "tests/run.php"
+  "tests/current-authority-conformance.sh"
 )
 
 for path in "${required_files[@]}"; do
@@ -44,12 +47,17 @@ done
 
 grep -Fq 'docs/MOTHER_PROJECT.md' README.md
 grep -Fq 'docs/design/UI_REFERENCE.md' README.md
+grep -Fq 'docs/design/PAGE05_PRODUCTION_REFERENCE.md' README.md
+grep -Fq 'docs/design/PAGE05_PRODUCTION_REFERENCE.md' AGENTS.md
 grep -Fq 'scripts/verify-foundation.sh' README.md
 grep -Fq 'wp-content/plugins/ksh-kanoon-articles' README.md
 grep -Fq 'docs/MOTHER_PROJECT.md' AGENTS.md
 grep -Fq 'ADR-001-kanoon-article-list-mirror.md' AGENTS.md
 grep -Fq 'bash scripts/verify-foundation.sh' AGENTS.md
 grep -Fq 'wp-content/plugins/ksh-kanoon-articles' AGENTS.md
+
+bash scripts/verify-current-authority.sh
+bash tests/current-authority-conformance.sh
 
 expected_design_blob='4f821a2e0c3a03c897c28eefb50d8ac7312359ce'
 actual_design_blob="$(git hash-object docs/design/assets/homepage-responsive-reference.webp)"

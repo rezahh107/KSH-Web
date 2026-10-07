@@ -10,9 +10,10 @@ Before material implementation work, read:
 
 1. `docs/MOTHER_PROJECT.md`
 2. the relevant ADR under `docs/decisions/`
-3. `docs/design/UI_REFERENCE.md` for UI work
-4. `README.md`
-5. only then inspect the implementation code relevant to the task
+3. `docs/design/PAGE05_PRODUCTION_REFERENCE.md` for Page 05 implementation/qualification
+4. `docs/design/UI_REFERENCE.md` for shared/historical UI-reference boundaries
+5. `README.md`
+6. only then inspect the implementation code/runtime relevant to the task
 
 ## Authority order
 
@@ -27,6 +28,12 @@ Do not let generated mockup copy, placeholder text, or visual artifacts override
 
 ## Current locked product decisions
 
+- The KSH Nine-Page Guidance Design System v1.0.1 is complete and locked; Design System completion is not page-runtime completion.
+- Page 05 Master v1.1 and Hero v1.0 are the current locked Page 05 implementation authority.
+- `PAGE_05_ELEMENTOR_PRODUCTION_REFERENCE` is the immediate milestone.
+- `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` until authentic native Elementor/browser qualification occurs.
+- KSH Kanoon Articles v0.4.1 current-contract real-host qualification remains unresolved but is deferred from immediate priority.
+- Pages 01–04 and 06–09 remain unimplemented/unproven unless separately evidenced.
 - WordPress is the target platform.
 - The public UI is Persian RTL and responsive.
 - Kanoon article integration is metadata/link mirroring only; article bodies and media are not copied.
@@ -79,33 +86,35 @@ Important boundaries:
 - the 15-item public limit is presentation-only and must not truncate otherwise valid persisted list data;
 - repository/stub tests prove exercised renderer, attribution, qualification admission, persistence, scheduling, and export logic but do not qualify the real KSH host;
 - historical Preview/Cron observations qualify only the exact runtime/source behavior they executed;
-- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; v0.4.0 real-host acquisition-contract qualification remains `NOT_PROVEN` until the Owner executes the exact repaired build on KSH and the current-contract qualification action succeeds.
+- the observed v0.3.0 desktop/mobile captures qualify shortcode placement/rendering for that execution; current v0.4.1 real-host acquisition-contract qualification remains `NOT_PROVEN` until the Owner executes the current v0.4.1 build on KSH and the `kanoon-homepage-semantic-lists-v1` qualification action succeeds.
 
 Do not couple public rendering to acquisition/refresh or add builder-specific data logic.
 
 ## Public homepage direction
 
-The final public homepage/pages are Owner-built manually in Elementor on the qualified Hello Elementor + Elementor + Elementor Pro stack. Preserve the existing global `Header01`, do not modify the Plato managers' portal, and do not change the live `page_on_front` assignment unless the Owner explicitly authorizes that runtime action.
+Public pages are implemented with the authentic KSH Elementor stack, preserving the existing global `Header01`. The historical PR #7 homepage JSON remains evidence only and is not a generic page-production mechanism.
 
-The merged PR #7 artifact remains at:
+For the current milestone, authorized Executor work may construct Page 05 natively in Elementor from the locked Page 05 reference. Do not recreate the historical homepage-import workflow, introduce a parallel renderer, modify the Plato managers' portal, or change the live `page_on_front` assignment.
 
-`elementor/homepage/ksh-public-homepage-body-v1.json`
-
-It is **historical/technical qualification evidence only**, not the selected final homepage implementation method. Do not instruct future work to import or deploy that JSON as the final homepage. Its deterministic validator remains in the repository only to preserve the historical artifact's contract:
-
-`scripts/validate-elementor-homepage.php`
-
-The current proposed page/destination structure, naming, URL, navigation, and indexing reference is:
-
-`docs/SITE_INFORMATION_ARCHITECTURE.md`
-
-That IA document remains **PROPOSED — OWNER REVIEW REQUIRED** except for decisions explicitly marked Owner-locked, including `/reg/`.
+The current proposed page/destination structure remains `docs/SITE_INFORMATION_ARCHITECTURE.md`. It is **PROPOSED — OWNER REVIEW REQUIRED** except for explicit Owner locks such as `/reg/`. If authentic runtime inspection does not reveal an authoritative Page 05 path, use a safe draft/staging/template surface rather than inventing a permanent public URL.
 
 ## Design authority
 
-Use `docs/design/assets/homepage-responsive-reference.webp` together with `docs/design/UI_REFERENCE.md`.
+Current whole-site design authority:
 
-The image is a composition/reference artifact, not textual-content authority. Preserve the responsive structure, visual language, hierarchy, and placement intent; do not reproduce obvious generated-image text errors as product copy.
+- `KSH_NINE_PAGE_DESIGN_SYSTEM_v1.0.1_COMPLETE.zip` — `DESIGN_SYSTEM_STATUS = COMPLETE`.
+
+Current Page 05 implementation authority:
+
+- `docs/design/PAGE05_PRODUCTION_REFERENCE.md`;
+- `KSH_PAGE05_MASTER_REFERENCE_v1.1`;
+- `KSH_PAGE05_HERO_REFERENCE_v1.0`.
+
+The large canonical Page 05 binary masters remain in the established Owner Drive authority store; the repository keeps their exact names, dimensions, hashes, provenance/status, and runtime claim boundary. Do not create a second asset-management subsystem merely to duplicate those binaries.
+
+The repository-owned `docs/design/assets/homepage-responsive-reference.webp` plus `docs/design/UI_REFERENCE.md` remain historical homepage/article-composition evidence. They do not override Page 05-specific authority.
+
+Static masters never prove Elementor/browser/accessibility behavior. Preserve `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` until the authentic runtime path has actually been exercised.
 
 ## Verification
 
