@@ -79,6 +79,14 @@ sed -i 's/current v0\.4\.1 real-host acquisition-contract qualification/current 
 expect_fail "stale-current-article-qualification" "$fixture"
 
 fixture="$(make_fixture)"
+sed -i 's/They are \*\*not, by themselves, an exact-version production admission pin\*\*\./They are an exact-version production admission pin./' "$fixture/docs/design/PAGE05_PRODUCTION_REFERENCE.md"
+expect_fail "runtime-baseline-upgraded-to-admission-pin" "$fixture"
+
+fixture="$(make_fixture)"
+sed -i 's/Runtime drift must not be accepted as compatible automatically, and it must not be rejected merely because an exact version identity differs\./Runtime drift is automatically incompatible when an exact version identity differs./' "$fixture/docs/design/PAGE05_PRODUCTION_REFERENCE.md"
+expect_fail "runtime-drift-auto-rejection" "$fixture"
+
+fixture="$(make_fixture)"
 expect_pass "restored-positive-control" "$fixture"
 
-echo "CURRENT_AUTHORITY_REGRESSION_PASS mutations=7 positive_controls=2"
+echo "CURRENT_AUTHORITY_REGRESSION_PASS mutations=9 positive_controls=2"

@@ -90,6 +90,15 @@ require_line "$canonical" '- SHA-256: `8bfa78723bd42770560be17707bfa5fe1323227bb
 require_line "$canonical" '`8be5171342f3c7024b0f173bb152a9fcc94f2e1a58967d15d05d3b5a1b1234ba`'
 require_line "$canonical" '`ksh-icon-system-production-candidate-v1.0.zip`'
 require_contains "$canonical" 'Repository verification does not download or re-hash the Google Drive binary bytes.'
+require_contains "$canonical" 'The following identities are retained as the previously qualified KSH runtime baseline and as bounded qualification evidence:'
+require_contains "$canonical" 'They are **not, by themselves, an exact-version production admission pin**.'
+require_contains "$canonical" 'They do not establish that a different future runtime is compatible, and an identity difference alone does not establish incompatibility.'
+require_contains "$canonical" 'Before any Page 05 mutation, inspect the authentic live WordPress/Elementor runtime.'
+require_contains "$canonical" 'Runtime drift must not be accepted as compatible automatically, and it must not be rejected merely because an exact version identity differs.'
+require_contains "$canonical" 'Block implementation only when evidence or Owner/platform authority shows a material incompatibility or required unsupported behavior.'
+require_contains "$canonical" 'The global `Header01` template ID 341 remains an Owner lock and must be preserved independently of runtime-version drift.'
+require_contains "$canonical" 'Whether the live identities match this baseline or differ from it, `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` remains in force until authentic Page 05 Elementor/browser qualification is actually completed.'
+reject_pattern "$canonical" 'Use authentic Elementor composition in the qualified KSH stack' 'ambiguous exact-runtime admission wording'
 
 # Reject contradictions even when the correct token is still present elsewhere.
 for path in "${authority_files[@]}"; do

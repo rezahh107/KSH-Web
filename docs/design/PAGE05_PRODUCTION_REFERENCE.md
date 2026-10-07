@@ -94,7 +94,9 @@ The older small repository-owned homepage WebP remains separately integrity-chec
 
 ## Native Elementor implementation direction
 
-Use authentic Elementor composition in the qualified KSH stack:
+### Previously qualified runtime baseline — evidence, not admission pin
+
+The following identities are retained as the previously qualified KSH runtime baseline and as bounded qualification evidence:
 
 - WordPress 7.1.2
 - PHP 8.3.33
@@ -102,9 +104,16 @@ Use authentic Elementor composition in the qualified KSH stack:
 - Elementor 4.3.2
 - Elementor Pro 4.3.0
 - locale `fa_IR`
-- preserve global `Header01` template ID 341
 
-Prefer native containers/widgets/responsive controls. Use bounded local custom CSS only when native controls cannot faithfully/safely express the locked reference. Use intrinsic sizing and content-driven height, preserve RTL and semantic reading order, and avoid JavaScript or screenshot-tracing absolute positioning when Elementor/CSS suffices.
+These identities describe the runtime that was previously qualified. They are **not, by themselves, an exact-version production admission pin**. They do not establish that a different future runtime is compatible, and an identity difference alone does not establish incompatibility.
+
+Before any Page 05 mutation, inspect the authentic live WordPress/Elementor runtime. If its identities differ from this baseline, evaluate compatibility and qualification against the actual Page 05 capabilities, supported WordPress/Elementor seams, and Owner/platform authority. Runtime drift must not be accepted as compatible automatically, and it must not be rejected merely because an exact version identity differs. Block implementation only when evidence or Owner/platform authority shows a material incompatibility or required unsupported behavior.
+
+The global `Header01` template ID 341 remains an Owner lock and must be preserved independently of runtime-version drift.
+
+Whether the live identities match this baseline or differ from it, `ELEMENTOR_RUNTIME_STATUS = NOT_PROVEN` remains in force until authentic Page 05 Elementor/browser qualification is actually completed.
+
+Use authentic Elementor composition. Prefer native containers/widgets/responsive controls. Use bounded local custom CSS only when native controls cannot faithfully/safely express the locked reference. Use intrinsic sizing and content-driven height, preserve RTL and semantic reading order, and avoid JavaScript or screenshot-tracing absolute positioning when Elementor/CSS suffices.
 
 KSH does not own font-file delivery. Page 05 should inherit site typography; when the Owner companion `rezahh107/Vazir` is active, the canonical delivered family is `Vazirmatn`. Do not add fonts, `@font-face`, aliases, or a PHP dependency on that companion.
 
